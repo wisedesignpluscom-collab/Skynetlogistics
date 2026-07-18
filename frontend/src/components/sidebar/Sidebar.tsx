@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useUnreadAlertCount } from '../../features/alerts/hooks'
 
-const upcomingModules = ['Viajes', 'Neumáticos', 'Inventario', 'GPS', 'Reportes']
+const upcomingModules = ['Neumáticos', 'Inventario', 'GPS', 'Reportes']
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors ${
@@ -26,6 +26,9 @@ export function Sidebar() {
         </NavLink>
         <NavLink to="/drivers" className={navLinkClass}>
           Conductores
+        </NavLink>
+        <NavLink to="/trips" className={navLinkClass}>
+          Viajes
         </NavLink>
         <NavLink to="/alerts" className={navLinkClass}>
           <span>Alertas</span>

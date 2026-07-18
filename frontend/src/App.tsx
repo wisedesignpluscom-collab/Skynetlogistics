@@ -7,6 +7,9 @@ import { VehiclesPage } from './routes/VehiclesPage'
 import { VehicleDetailPage } from './routes/VehicleDetailPage'
 import { DriversPage } from './routes/DriversPage'
 import { AlertsPage } from './routes/AlertsPage'
+import { TripsPage } from './routes/TripsPage'
+import { TripDetailPage } from './routes/TripDetailPage'
+import { TripSettingsPage } from './routes/TripSettingsPage'
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, isLoading } = useAuth()
@@ -56,6 +59,30 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AlertsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trips"
+        element={
+          <ProtectedRoute>
+            <TripsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trips/:tripId"
+        element={
+          <ProtectedRoute>
+            <TripDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trip-settings"
+        element={
+          <ProtectedRoute>
+            <TripSettingsPage />
           </ProtectedRoute>
         }
       />

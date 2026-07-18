@@ -10,8 +10,12 @@ from app.core.database import Base, get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.company import Company
+from app.models.company_holiday import CompanyHoliday
 from app.models.driver import Driver
+from app.models.driver_pay_rate import DriverPayRate
+from app.models.expense_concept import ExpenseConcept
 from app.models.provider import Provider
+from app.models.rate_table import RateTable
 from app.models.role import Role
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -182,6 +186,57 @@ async def provider(db: AsyncSession, company: Company) -> Provider:
     await db.commit()
     await db.refresh(p)
     return p
+
+
+@pytest_asyncio.fixture
+async def driver_pay_rate(db: AsyncSession, company: Company) -> DriverPayRate:
+    r = DriverPayRate(
+        company_id=company.id,
+        vehicle_type="camion",
+        daily_base_rate=50,
+        meal_allowance_per_day=15,
+        holiday_bonus_rate=30,
+        return_bonus_rate=40,
+    )
+    db.add(r)
+    await db.commit()
+    await db.refresh(r)
+    return r
+
+
+@pytest_asyncio.fixture
+async def rate_table(db: AsyncSession, company: Company) -> RateTable:
+    rt = RateTable(
+        company_id=company.id,
+        origin="Caracas",
+        destination="Maracaibo",
+        vehicle_type="camion",
+        cargo_type="general",
+        distance_km=550,
+        freight_amount=800,
+    )
+    db.add(rt)
+    await db.commit()
+    await db.refresh(rt)
+    return rt
+
+
+@pytest_asyncio.fixture
+async def expense_concept(db: AsyncSession, company: Company) -> ExpenseConcept:
+    c = ExpenseConcept(company_id=company.id, name="Combustible")
+    db.add(c)
+    await db.commit()
+    await db.refresh(c)
+    return c
+
+
+@pytest_asyncio.fixture
+async def company_holiday(db: AsyncSession, company: Company) -> CompanyHoliday:
+    h = CompanyHoliday(company_id=company.id, date=date(2026, 1, 1), name="Año Nuevo")
+    db.add(h)
+    await db.commit()
+    await db.refresh(h)
+    return h
 
 
 async def login(client: AsyncClient, email: str, password: str) -> dict:

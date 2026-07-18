@@ -20,7 +20,11 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
   de esta fase) y frontend verificado end-to-end en navegador (vehículos, conductores, detalle
   de vehículo con historial de mantenimiento, programación/cierre de tareas, panel de alertas
   con badge en el sidebar).
-- Próxima fase: **Fase 2 (Control de viajes)** — sin iniciar, pendiente de propuesta de
+- **Fase 2 (Control de viajes): completa.** Backend probado (71 tests en total, 22 nuevos de esta
+  fase, incluida la fórmula de nómina reproducida exactamente contra el ejemplo numérico aprobado)
+  y frontend verificado end-to-end en navegador (viajes con sugerencia automática de flete/distancia,
+  inicio/gastos/cierre de viaje, tabulados de configuración, documentos imprimibles).
+- Próxima fase: **Fase 3 (Integración GPS)** — sin iniciar, pendiente de propuesta de
   esquema/endpoints y aprobación antes de generar código (ver regla 1).
 
 ## Comandos de desarrollo
@@ -102,6 +106,15 @@ recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelve
   `status='no_leida'`) + `INSERT ... ON CONFLICT DO NOTHING` (ver `crud/alert.py::create_if_not_exists`);
   este patrón es el que hay que replicar para cualquier alerta nueva en fases futuras (fatiga,
   documentos vencidos, etc.), no reinventar la deduplicación en cada módulo.
+- **Cálculos de negocio (`app/services/`):** lógica de negocio con fórmulas (nómina, flete, y lo
+  que venga en fases futuras como fatiga) vive en funciones puras fuera de `crud/` y `api/`, para
+  que el endpoint de "preview" (ej. `GET /trips/{id}/close-preview`) y el que persiste (`POST
+  .../close`) compartan exactamente el mismo cálculo — ver `app/services/trip_calculations.py`.
+- **Reutilizar jobs entre fases sin duplicar lógica:** cuando una fase nueva necesita re-disparar
+  algo que ya hace un job de una fase anterior (ej. Fase 2 revalida mantenimiento por km al cerrar
+  un viaje), se extiende la función existente con un parámetro opcional que acota su alcance
+  (`run_alert_checks(db, vehicle_ids=[...])`) en vez de escribir una copia — el comportamiento por
+  defecto (sin el parámetro) se mantiene idéntico para el job programado.
 - **Auth:** access token JWT de corta vida (`app/core/security.py`); refresh token opaco
   (`secrets.token_urlsafe`) cuyo hash SHA-256 se guarda en `refresh_tokens` — rota en cada uso
   (`/auth/refresh` revoca el anterior y emite uno nuevo). Password con bcrypt.

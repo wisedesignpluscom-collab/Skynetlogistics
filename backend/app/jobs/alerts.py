@@ -5,6 +5,7 @@ Se ejecuta una vez al día vía APScheduler (ver `app/main.py`). La función pri
 invocar directamente desde tests sin levantar el scheduler.
 """
 
+import uuid
 from datetime import date, timezone, datetime
 
 from sqlalchemy import select
@@ -34,12 +35,17 @@ def _severity_from_remaining(remaining: int, high_threshold: int, medium_thresho
     return None
 
 
-async def _check_maintenance_tasks(db: AsyncSession, today: date) -> int:
-    result = await db.execute(
+async def _check_maintenance_tasks(
+    db: AsyncSession, today: date, vehicle_ids: list[uuid.UUID] | None = None
+) -> int:
+    query = (
         select(MaintenanceTask, Vehicle)
         .join(Vehicle, Vehicle.id == MaintenanceTask.vehicle_id)
         .where(MaintenanceTask.status.in_(ACTIVE_TASK_STATUSES))
     )
+    if vehicle_ids is not None:
+        query = query.where(MaintenanceTask.vehicle_id.in_(vehicle_ids))
+    result = await db.execute(query)
     created = 0
     for task, vehicle in result.all():
         severity: str | None = None
@@ -101,9 +107,20 @@ async def _check_driver_licenses(db: AsyncSession, today: date) -> int:
     return created
 
 
-async def run_alert_checks(db: AsyncSession, *, today: date | None = None) -> dict[str, int]:
-    """Ejecuta ambos chequeos y devuelve cuántas alertas nuevas se crearon de cada tipo."""
+async def run_alert_checks(
+    db: AsyncSession, *, today: date | None = None, vehicle_ids: list[uuid.UUID] | None = None
+) -> dict[str, int]:
+    """Ejecuta los chequeos y devuelve cuántas alertas nuevas se crearon de cada tipo.
+
+    Por defecto (`vehicle_ids=None`) revisa todos los vehículos y conductores de todas las
+    empresas — es el comportamiento del job diario programado. Si se pasa `vehicle_ids`, solo
+    revisa mantenimiento de esos vehículos (uso: revalidar tras actualizar el odómetro al cerrar
+    un viaje en Fase 2, sin reimplementar la lógica de umbrales/severidad/anti-duplicados). En ese
+    caso se omite el chequeo de licencias, que no depende del odómetro del vehículo.
+    """
     effective_today = today or datetime.now(timezone.utc).date()
-    maintenance_created = await _check_maintenance_tasks(db, effective_today)
+    maintenance_created = await _check_maintenance_tasks(db, effective_today, vehicle_ids)
+    if vehicle_ids is not None:
+        return {"maintenance_due": maintenance_created, "license_expiring": 0}
     license_created = await _check_driver_licenses(db, effective_today)
     return {"maintenance_due": maintenance_created, "license_expiring": license_created}
