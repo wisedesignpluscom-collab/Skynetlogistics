@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from datetime import date
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -9,8 +10,11 @@ from app.core.database import Base, get_db
 from app.core.security import hash_password
 from app.main import app
 from app.models.company import Company
+from app.models.driver import Driver
+from app.models.provider import Provider
 from app.models.role import Role
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.utils.permissions import DEFAULT_ADMIN_PERMISSIONS, SUPERADMIN_PERMISSIONS
 
 TEST_DATABASE_URL = "postgresql+asyncpg://fleet:fleet_dev_pw@localhost:5432/fleet_test_db"
@@ -138,6 +142,46 @@ async def superadmin_user(db: AsyncSession) -> User:
     await db.commit()
     await db.refresh(u)
     return u
+
+
+@pytest_asyncio.fixture
+async def driver(db: AsyncSession, company: Company) -> Driver:
+    d = Driver(
+        company_id=company.id,
+        name="Juan Pérez",
+        license_number="LIC-001",
+        license_expiry=date(2030, 1, 1),
+    )
+    db.add(d)
+    await db.commit()
+    await db.refresh(d)
+    return d
+
+
+@pytest_asyncio.fixture
+async def vehicle(db: AsyncSession, company: Company) -> Vehicle:
+    v = Vehicle(
+        company_id=company.id,
+        plate="ABC-123",
+        brand="Volvo",
+        model="FH16",
+        year=2022,
+        type="camion",
+        current_odometer_km=10_000,
+    )
+    db.add(v)
+    await db.commit()
+    await db.refresh(v)
+    return v
+
+
+@pytest_asyncio.fixture
+async def provider(db: AsyncSession, company: Company) -> Provider:
+    p = Provider(company_id=company.id, name="Taller Central", type="taller")
+    db.add(p)
+    await db.commit()
+    await db.refresh(p)
+    return p
 
 
 async def login(client: AsyncClient, email: str, password: str) -> dict:

@@ -3,6 +3,10 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './features/auth/AuthContext'
 import { LoginPage } from './routes/LoginPage'
 import { UsersPage } from './routes/UsersPage'
+import { VehiclesPage } from './routes/VehiclesPage'
+import { VehicleDetailPage } from './routes/VehicleDetailPage'
+import { DriversPage } from './routes/DriversPage'
+import { AlertsPage } from './routes/AlertsPage'
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, isLoading } = useAuth()
@@ -20,6 +24,38 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <UsersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/vehicles"
+        element={
+          <ProtectedRoute>
+            <VehiclesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/vehicles/:vehicleId"
+        element={
+          <ProtectedRoute>
+            <VehicleDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/drivers"
+        element={
+          <ProtectedRoute>
+            <DriversPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/alerts"
+        element={
+          <ProtectedRoute>
+            <AlertsPage />
           </ProtectedRoute>
         }
       />

@@ -16,8 +16,12 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
 - **Fase 0 (Core: auth multiempresa, usuarios/roles): completa.** Backend probado (24 tests,
   pytest + Postgres real) y frontend verificado end-to-end (login, layout con sidebar,
   gestión de usuarios) contra el backend real.
-- Próxima fase en curso: **Fase 1 (Mantenimiento + Alertas)** — en etapa de propuesta de
-  esquema/endpoints, pendiente de aprobación antes de generar código (ver regla 1).
+- **Fase 1 (Mantenimiento + Alertas): completa.** Backend probado (49 tests en total, 25 nuevos
+  de esta fase) y frontend verificado end-to-end en navegador (vehículos, conductores, detalle
+  de vehículo con historial de mantenimiento, programación/cierre de tareas, panel de alertas
+  con badge en el sidebar).
+- Próxima fase: **Fase 2 (Control de viajes)** — sin iniciar, pendiente de propuesta de
+  esquema/endpoints y aprobación antes de generar código (ver regla 1).
 
 ## Comandos de desarrollo
 
@@ -87,7 +91,17 @@ recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelve
   resto de endpoints quedan acotados a `current_user.company_id`, superadmin incluido.
 - **RBAC:** `app/core/deps.py::require_permission(module, action)` es la dependency que protegen
   los routers. Superadmin (`is_superadmin=True`) pasa cualquier check. Los permisos viven en
-  `roles.permissions` (JSONB `{modulo: [acciones]}`), ver `app/utils/permissions.py`.
+  `roles.permissions` (JSONB `{modulo: [acciones]}`), ver `app/utils/permissions.py`. Los roles de
+  Fase 0 no reciben automáticamente los módulos nuevos de fases posteriores — hay que asignarlos
+  explícitamente al rol correspondiente.
+- **Motor de alertas (`app/jobs/`):** `app/jobs/alerts.py::run_alert_checks(db, today=...)` es una
+  función pura (recibe la sesión, no crea la suya) para poder invocarla directo desde tests sin
+  levantar el scheduler. Se registra en `app/main.py` vía `AsyncIOScheduler` (APScheduler) dentro
+  del `lifespan` de FastAPI — un solo proceso in-process, sin Celery/Redis. El anti-duplicado de
+  alertas se resuelve con un índice único parcial en Postgres (`uq_alerts_unread_dedupe`, WHERE
+  `status='no_leida'`) + `INSERT ... ON CONFLICT DO NOTHING` (ver `crud/alert.py::create_if_not_exists`);
+  este patrón es el que hay que replicar para cualquier alerta nueva en fases futuras (fatiga,
+  documentos vencidos, etc.), no reinventar la deduplicación en cada módulo.
 - **Auth:** access token JWT de corta vida (`app/core/security.py`); refresh token opaco
   (`secrets.token_urlsafe`) cuyo hash SHA-256 se guarda en `refresh_tokens` — rota en cada uso
   (`/auth/refresh` revoca el anterior y emite uno nuevo). Password con bcrypt.
