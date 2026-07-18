@@ -14,12 +14,16 @@ from app.models.provider import Provider
 from app.models.rate_table import RateTable
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
+from app.models.tire import Tire
+from app.models.tire_movement import TireMovement
+from app.models.tire_settings import TireSettings
 from app.models.trip import Trip
 from app.models.trip_expense import TripExpense
 from app.models.trip_payroll import TripPayroll
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_position import VehiclePosition
+from app.models.warehouse import Warehouse
 
 __all__ = [
     "Company",
@@ -44,4 +48,8 @@ __all__ = [
     "VehiclePosition",
     "FatigueRule",
     "DriverFatigueLog",
+    "Warehouse",
+    "Tire",
+    "TireMovement",
+    "TireSettings",
 ]

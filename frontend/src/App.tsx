@@ -15,6 +15,12 @@ import { TripDetailPage } from './routes/TripDetailPage'
 import { TripSettingsPage } from './routes/TripSettingsPage'
 import { FleetMapPage } from './routes/FleetMapPage'
 import { GPSSettingsPage } from './routes/GPSSettingsPage'
+import { TiresPage } from './routes/TiresPage'
+import { TireDetailPage } from './routes/TireDetailPage'
+import { TireSettingsPage } from './routes/TireSettingsPage'
+import { TirePerformancePage } from './routes/TirePerformancePage'
+import { WarehousesPage } from './routes/WarehousesPage'
+import { VehicleTiresPage } from './routes/VehicleTiresPage'
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, isLoading } = useAuth()
@@ -128,6 +134,54 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <GPSSettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tires"
+        element={
+          <ProtectedRoute>
+            <TiresPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tires/:tireId"
+        element={
+          <ProtectedRoute>
+            <TireDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tire-settings"
+        element={
+          <ProtectedRoute>
+            <TireSettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tire-performance"
+        element={
+          <ProtectedRoute>
+            <TirePerformancePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/warehouses"
+        element={
+          <ProtectedRoute>
+            <WarehousesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/vehicles/:vehicleId/tires"
+        element={
+          <ProtectedRoute>
+            <VehicleTiresPage />
           </ProtectedRoute>
         }
       />

@@ -11,9 +11,11 @@ from datetime import date, timezone, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.crud import tire_settings as tire_settings_crud
 from app.crud.alert import create_if_not_exists
 from app.models.driver import Driver
 from app.models.maintenance_task import MaintenanceTask
+from app.models.tire import Tire
 from app.models.vehicle import Vehicle
 
 # Umbrales por defecto (días u odómetro restante) para disparar cada nivel de severidad.
@@ -107,6 +109,58 @@ async def _check_driver_licenses(db: AsyncSession, today: date) -> int:
     return created
 
 
+async def _check_tire_disparity(db: AsyncSession, vehicle_ids: list[uuid.UUID] | None = None) -> int:
+    """Agrupa neumáticos instalados por (vehicle_id, axle_number, axle_side) — la posición
+    "morocha" — y genera una alerta cuando la diferencia de espesor entre el par supera el
+    umbral configurable de la empresa (`tire_settings`).
+    """
+    query = select(Tire).where(Tire.status == "instalado")
+    if vehicle_ids is not None:
+        query = query.where(Tire.vehicle_id.in_(vehicle_ids))
+    result = await db.execute(query)
+
+    groups: dict[tuple[uuid.UUID, int, str], list[Tire]] = {}
+    for tire in result.scalars().all():
+        if tire.vehicle_id is None or tire.axle_number is None or tire.axle_side is None:
+            continue
+        key = (tire.vehicle_id, tire.axle_number, tire.axle_side)
+        groups.setdefault(key, []).append(tire)
+
+    threshold_cache: dict[uuid.UUID, float] = {}
+    created = 0
+    for (vehicle_id, axle_number, axle_side), group_tires in groups.items():
+        if len(group_tires) != 2:
+            continue
+        tire_a, tire_b = group_tires
+        company_id = tire_a.company_id
+        if company_id not in threshold_cache:
+            settings = await tire_settings_crud.get_or_create(db, company_id)
+            threshold_cache[company_id] = float(settings.disparity_threshold_mm)
+
+        diff = abs(float(tire_a.current_thickness_mm) - float(tire_b.current_thickness_mm))
+        if diff <= threshold_cache[company_id]:
+            continue
+
+        low_tire = tire_a if tire_a.current_thickness_mm < tire_b.current_thickness_mm else tire_b
+        message = (
+            f"Disparidad de espesor en eje {axle_number} ({axle_side}): "
+            f"{tire_a.unique_code} {tire_a.current_thickness_mm}mm vs "
+            f"{tire_b.unique_code} {tire_b.current_thickness_mm}mm"
+        )
+        inserted = await create_if_not_exists(
+            db,
+            company_id=company_id,
+            type="tire_disparity",
+            entity_type="tire",
+            entity_id=low_tire.id,
+            message=message,
+            severity="media",
+        )
+        if inserted:
+            created += 1
+    return created
+
+
 async def run_alert_checks(
     db: AsyncSession, *, today: date | None = None, vehicle_ids: list[uuid.UUID] | None = None
 ) -> dict[str, int]:
@@ -114,13 +168,23 @@ async def run_alert_checks(
 
     Por defecto (`vehicle_ids=None`) revisa todos los vehículos y conductores de todas las
     empresas — es el comportamiento del job diario programado. Si se pasa `vehicle_ids`, solo
-    revisa mantenimiento de esos vehículos (uso: revalidar tras actualizar el odómetro al cerrar
-    un viaje en Fase 2, sin reimplementar la lógica de umbrales/severidad/anti-duplicados). En ese
-    caso se omite el chequeo de licencias, que no depende del odómetro del vehículo.
+    revisa mantenimiento y disparidad de neumáticos de esos vehículos (uso: revalidar tras
+    actualizar el odómetro al cerrar un viaje en Fase 2, o tras un movimiento de neumático en
+    Fase 5, sin reimplementar la lógica de umbrales/severidad/anti-duplicados). En ese caso se
+    omite el chequeo de licencias, que no depende del odómetro del vehículo.
     """
     effective_today = today or datetime.now(timezone.utc).date()
     maintenance_created = await _check_maintenance_tasks(db, effective_today, vehicle_ids)
+    tire_disparity_created = await _check_tire_disparity(db, vehicle_ids)
     if vehicle_ids is not None:
-        return {"maintenance_due": maintenance_created, "license_expiring": 0}
+        return {
+            "maintenance_due": maintenance_created,
+            "license_expiring": 0,
+            "tire_disparity": tire_disparity_created,
+        }
     license_created = await _check_driver_licenses(db, effective_today)
-    return {"maintenance_due": maintenance_created, "license_expiring": license_created}
+    return {
+        "maintenance_due": maintenance_created,
+        "license_expiring": license_created,
+        "tire_disparity": tire_disparity_created,
+    }

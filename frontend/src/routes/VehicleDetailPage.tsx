@@ -68,6 +68,9 @@ export function VehicleDetailPage() {
           <Link to={`/vehicles/${vehicle.id}/route`} className="text-sm text-text-muted hover:text-gold">
             Ver ruta GPS
           </Link>
+          <Link to={`/vehicles/${vehicle.id}/tires`} className="text-sm text-text-muted hover:text-gold">
+            Neumáticos
+          </Link>
           <Badge tone={vehicle.status === 'activo' ? 'gold' : 'muted'}>{vehicle.status}</Badge>
         </div>
       </div>

@@ -16,11 +16,15 @@ from app.api.v1 import (
     providers,
     rate_tables,
     roles,
+    tire_movements,
+    tire_settings,
+    tires,
     trip_documents,
     trips,
     users,
     vehicle_positions,
     vehicles,
+    warehouses,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -45,3 +49,7 @@ api_router.include_router(gps_webhook.router)
 api_router.include_router(vehicle_positions.router)
 api_router.include_router(fatigue_rules.router)
 api_router.include_router(driver_fatigue.router)
+api_router.include_router(warehouses.router)
+api_router.include_router(tires.router)
+api_router.include_router(tire_movements.router)
+api_router.include_router(tire_settings.router)

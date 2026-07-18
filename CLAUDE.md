@@ -34,8 +34,14 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
   de nivel de riesgo en el listado de conductores, detalle de conductor con historial/gráfico de
   risk_score, advertencia no bloqueante al crear un viaje con conductor en riesgo alto/crítico,
   alerta generada automáticamente y visible en el panel de alertas).
-- Próxima fase: **Fase 5 (Neumáticos)** — sin iniciar, pendiente de propuesta de esquema/endpoints
-  y aprobación antes de generar código (ver regla 1).
+- **Fase 5 (Neumáticos): completa.** Backend probado (144 tests en total, 28 nuevos de esta fase)
+  y frontend verificado end-to-end en navegador (alta de neumáticos, almacenes mínimos, diagrama
+  de ejes por vehículo con instalación/desinstalación/envío a reparación-reencauche/retorno de
+  taller vía clic en posición, movimiento en lote, cálculo de km por período y acumulado, alerta
+  de disparidad de espesor entre neumáticos "morocha" con umbral configurable, reporte de
+  rendimiento por marca/modelo).
+- Próxima fase: **Fase 6 (Inventario/repuestos)** — sin iniciar, pendiente de propuesta de
+  esquema/endpoints y aprobación antes de generar código (ver regla 1).
 
 ## Comandos de desarrollo
 
@@ -173,6 +179,30 @@ recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelve
 - **Endpoint de fatiga por conductor separado de `trips`:** `GET /drivers/{id}/fatigue-status` es
   un endpoint de solo consulta que el frontend llama al armar el formulario de viaje para mostrar
   una advertencia no bloqueante — `POST /trips` en sí no valida ni bloquea por fatiga, a propósito.
+- **`axle_position` modelado como 3 columnas estructuradas** (`axle_number` SmallInt, `axle_side`
+  izquierdo/derecho/unico, `axle_dual_position` unico/interior/exterior) en vez de un código de
+  texto libre — permite detectar el par "morocha" (mismo `vehicle_id`+`axle_number`+`axle_side`,
+  `axle_dual_position` distinto) con una query directa, sin parsear strings. Mismas 3 columnas se
+  repiten como snapshot en `tire_movements` para el historial.
+- **`app/services/tire_movements.py::apply_movement`** centraliza la transición de estado de un
+  neumático (instalación/desinstalación/envío a reparación-reencauche/retorno de taller): valida el
+  estado origen, resuelve `km_at_movement` desde `vehicles.current_odometer_km`, actualiza `tires` y
+  crea el registro en `tire_movements` de forma atómica — lo usan tanto el endpoint individual como
+  el de lote (`POST /tire-movements/batch`), mismo patrón que `vehicle_odometer.py::advance_odometer`.
+- **Detección de disparidad no es un job nuevo:** extiende `run_alert_checks(db, vehicle_ids=...)`
+  (`app/jobs/alerts.py`) con un chequeo adicional que agrupa neumáticos `instalado` por posición
+  "morocha" y genera alerta `tire_disparity` (`entity_type="tire"`, `entity_id` = el neumático con
+  menor espesor del par) si la diferencia supera `tire_settings.disparity_threshold_mm` — reutiliza
+  `create_if_not_exists` (Fase 1) para el anti-duplicado, tal como exige el patrón ya establecido.
+  Se dispara scoped a un vehículo tras cada movimiento/edición de espesor, y también en el barrido
+  diario completo.
+- **`app/services/tire_km.py`** (`close_periods`/`calculate_tire_km`/`compute_performance`) empareja
+  cada movimiento `instalacion` con el siguiente que lo cierra (desinstalación o envío a
+  reparación/reencauche) a partir de `km_at_movement` — es la única lógica de cálculo de km, la
+  reutilizan tanto el detalle de neumático (km del período actual + acumulado) como la analítica de
+  rendimiento por marca/modelo (`GET /tires/analytics/performance`), sin duplicar el emparejamiento.
+- **`warehouses`** es la versión mínima acordada para esta fase (`id, company_id, name, location`) —
+  Fase 6 (Inventario) la extiende sin romper Fase 5.
 
 ### Frontend (`frontend/src/`)
 
@@ -204,6 +234,18 @@ feature (ej. `components/users/UserTable.tsx`).
 - **Gráfico de historial de fatiga:** `DriverDetailPage` dibuja un bar chart simple con divs/CSS
   (sin librería de gráficos nueva), coloreado por `risk_level`, igual de simple que el resto de
   visualizaciones del proyecto (mapa GPS es la única que usa una librería externa, Leaflet).
+- **`VehicleAxleDiagram`** (`components/tires/`) infiere el layout de ejes a partir de los
+  neumáticos ya instalados en el vehículo (más un layout base sugerido por `vehicle.type` cuando no
+  hay ninguno instalado todavía — eje 1 direccional simple, resto doble rodado) en vez de agregar un
+  campo de configuración de ejes a `vehicles` — divs/CSS coloreados por posición, mismo criterio
+  "sin librería nueva" que el resto del proyecto. Clic en una posición vacía abre `InstallTireModal`
+  (elige un neumático de almacén); clic en una posición ocupada abre `TireMovementModal` acotado a
+  los movimientos válidos para el estado actual de ese neumático.
+- **`tire-settings`, `warehouses` y `tire-performance` sin ruta propia en el `Sidebar`:** siguiendo
+  el mismo patrón que `trip-settings`/`gps-settings`/`fatigue-settings`, se acceden vía botones
+  secundarios en `TiresPage`. `Neumáticos` sí tiene entrada directa en el `Sidebar` (reemplaza el
+  placeholder de "Próximamente"); el diagrama por vehículo se llega desde `VehicleDetailPage` con un
+  link "Neumáticos", igual que "Ver ruta GPS" (Fase 3).
 
 ---
 
@@ -229,11 +271,22 @@ feature (ej. `components/users/UserTable.tsx`).
 - **trip_payroll** — id, trip_id, base_salary, bonuses, advance_payment, total_to_pay
 
 ### Neumáticos
-- **tires** — id, unique_code, brand, model, current_thickness_mm, status (instalado/almacén/reparación)
-- **tire_movements** — id, tire_id, vehicle_id (nullable), axle_position, warehouse_id (nullable), km_at_movement, movement_type, timestamp
+- **tires** — id, company_id, unique_code, brand, model, current_thickness_mm, status
+  (instalado/almacen/reparacion), vehicle_id (nullable), axle_number/axle_side/axle_dual_position
+  (nullable, ver notas de diseño de axle_position), warehouse_id (nullable)
+- **tire_movements** — id, company_id, tire_id, movement_type
+  (instalacion/desinstalacion/envio_reparacion/envio_reencauche/retorno_taller), vehicle_id
+  (nullable, snapshot), axle_number/axle_side/axle_dual_position (nullable, snapshot),
+  warehouse_id (nullable), provider_id (nullable), km_at_movement (nullable), thickness_mm
+  (nullable), notes, recorded_by, created_at
+- **tire_settings** — id, company_id (unique), disparity_threshold_mm — umbral configurable del
+  motor de disparidad, mismo patrón que `fatigue_rules` (Fase 4)
+- **warehouses** — id, company_id, name, location — versión mínima introducida en Fase 5 (ver
+  Inventario más abajo); Fase 6 la extiende sin romper Fase 5
 
 ### Inventario
-- **warehouses** — id, company_id, name, location
+- **warehouses** — ver Neumáticos (Fase 5); Fase 6 le agrega los campos que necesite sin romper la
+  compatibilidad con `tires`/`tire_movements`
 - **inventory_items** — id, warehouse_id, sku, name, quantity, min_stock, unit_cost
 - **inventory_movements** — id, item_id, vehicle_id (nullable), type (entrada/salida), quantity, reference_doc
 
@@ -288,3 +341,17 @@ feature (ej. `components/users/UserTable.tsx`).
 - Se alimenta de: tiempo de ignición encendida (GPS) + registros de viajes.
 - Score configurable por empresa vía `fatigue_rules`.
 - Alertas de riesgo alto/crítico se integran con el módulo de `alerts` existente, notificando al despachador antes de asignar un nuevo viaje.
+
+## Notas de diseño de neumáticos
+
+- `axle_position` no es un campo de configuración de vehículo: el diagrama se arma dinámicamente
+  a partir de los neumáticos instalados (más una heurística de layout por `vehicle.type` cuando el
+  vehículo todavía no tiene ninguno), así que soporta cualquier configuración de ejes sin migración.
+- El ciclo de vida de un neumático es lineal: `almacen → instalacion → instalado → desinstalacion →
+  almacen`, o `(instalado|almacen) → envio_reparacion/envio_reencauche → reparacion →
+  retorno_taller → almacen`. `apply_movement` rechaza transiciones fuera de ese grafo.
+- "Reemplazo definitivo" (retiro de un neumático) no está modelado como estado aparte — el enum de
+  `status` se mantiene en los 3 valores acordados (instalado/almacen/reparacion). La analítica de
+  rendimiento por ahora solo reporta km hasta envío a reparación/reencauche; si una fase futura
+  necesita medir reemplazo definitivo, requiere agregar un 4º estado (decisión pendiente, no tomada
+  unilateralmente en esta fase).

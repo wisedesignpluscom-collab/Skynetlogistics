@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import require_permission
 from app.crud import maintenance_task as maintenance_task_crud
+from app.crud import tire as tire_crud
 from app.crud import vehicle as vehicle_crud
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.maintenance import MaintenanceTaskWithRecordsOut
+from app.schemas.tire import TireOut
 from app.schemas.vehicle import VehicleCreate, VehicleOut, VehicleUpdate
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
@@ -99,3 +101,15 @@ async def get_vehicle_maintenance_history(
     if vehicle is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Vehículo no encontrado")
     return await maintenance_task_crud.list_for_vehicle_with_records(db, vehicle_id, current_user.company_id)
+
+
+@router.get("/{vehicle_id}/tires", response_model=list[TireOut])
+async def get_vehicle_tires(
+    vehicle_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("tires", "read")),
+) -> list[TireOut]:
+    vehicle = await vehicle_crud.get(db, vehicle_id, current_user.company_id)
+    if vehicle is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Vehículo no encontrado")
+    return await tire_crud.list_installed_for_vehicle(db, vehicle_id, current_user.company_id)

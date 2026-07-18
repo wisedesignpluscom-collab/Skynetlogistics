@@ -21,6 +21,7 @@ from app.models.rate_table import RateTable
 from app.models.role import Role
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.warehouse import Warehouse
 from app.utils.permissions import DEFAULT_ADMIN_PERMISSIONS, SUPERADMIN_PERMISSIONS
 
 TEST_DATABASE_URL = "postgresql+asyncpg://fleet:fleet_dev_pw@localhost:5432/fleet_test_db"
@@ -239,6 +240,15 @@ async def company_holiday(db: AsyncSession, company: Company) -> CompanyHoliday:
     await db.commit()
     await db.refresh(h)
     return h
+
+
+@pytest_asyncio.fixture
+async def warehouse(db: AsyncSession, company: Company) -> Warehouse:
+    w = Warehouse(company_id=company.id, name="Almacén Central", location="Caracas")
+    db.add(w)
+    await db.commit()
+    await db.refresh(w)
+    return w
 
 
 @pytest_asyncio.fixture
