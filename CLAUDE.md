@@ -24,7 +24,11 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
   fase, incluida la fórmula de nómina reproducida exactamente contra el ejemplo numérico aprobado)
   y frontend verificado end-to-end en navegador (viajes con sugerencia automática de flete/distancia,
   inicio/gastos/cierre de viaje, tabulados de configuración, documentos imprimibles).
-- Próxima fase: **Fase 3 (Integración GPS)** — sin iniciar, pendiente de propuesta de
+- **Fase 3 (Integración GPS/Telemetría): completa.** Backend probado (90 tests en total, 19 nuevos
+  de esta fase) y frontend verificado end-to-end en navegador (configuración de proveedor GPS con
+  token de webhook, mapeo de vehículo a device externo, ingesta simulada vía webhook, mapa en vivo
+  de la flota y replay histórico de ruta con Leaflet).
+- Próxima fase: **Fase 4 (Fatiga del conductor)** — sin iniciar, pendiente de propuesta de
   esquema/endpoints y aprobación antes de generar código (ver regla 1).
 
 ## Comandos de desarrollo
@@ -123,6 +127,28 @@ recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelve
   flush en modo async revienta con `MissingGreenlet`.
 - **Seed:** `app/seed.py` crea la empresa "Platform", el rol de sistema "Superadmin" y el primer
   usuario superadmin — es el único punto de entrada para crear el primer usuario del sistema.
+- **Adaptadores de proveedores externos (`app/gps_adapters/`):** para integrar un proveedor GPS
+  nuevo (o cualquier otro proveedor externo en fases futuras con el mismo patrón) se implementa
+  `GPSProviderAdapter.normalize()` + una entrada en `ADAPTER_REGISTRY` — la ingesta (webhook/polling),
+  los endpoints y el resto del sistema no se tocan. El primer adapter (`TrakerGPSAdapter`) usa un
+  payload de ejemplo no confirmado contra la doc real del proveedor; ajustar solo ese archivo
+  cuando se valide.
+- **Credenciales de proveedores externos:** nunca en texto plano — se encriptan con Fernet
+  (`app/core/encryption.py`, clave en `GPS_CREDENTIALS_ENCRYPTION_KEY`) antes de persistir. Mismo
+  criterio a aplicar a cualquier credencial de terceros en fases futuras.
+- **Webhooks públicos:** el único endpoint sin JWT de todo el sistema es
+  `POST /api/v1/gps/webhook/{provider_id}` — se autentica con un token propio (hash SHA-256 en
+  `gps_providers.webhook_token_hash`, mismo patrón que los refresh tokens), no con el auth de
+  usuarios. Cualquier webhook público futuro debe seguir este mismo esquema de token dedicado.
+- **Tablas particionadas (`vehicle_positions`):** particionado nativo de Postgres por rango
+  mensual de `timestamp` (no TimescaleDB — hosting no confirmado; el esquema es compatible con
+  una futura migración a hypertable sin cambios). Las particiones se crean en la migración
+  (mes actual + 2 siguientes) y `app/jobs/gps_partitions.py` asegura mensualmente que siempre
+  exista la partición de 3 meses a futuro, corrido por el mismo `AsyncIOScheduler` de Fase 1.
+- **`app/services/vehicle_odometer.py::advance_odometer`** centraliza "si el odómetro nuevo es
+  mayor al actual, actualizar vehículo + re-chequear mantenimiento" — lo usa tanto el cierre de
+  viaje (Fase 2) como la ingesta GPS (Fase 3). Cualquier fuente nueva de lecturas de odómetro debe
+  llamar esta función en vez de repetir el patrón.
 
 ### Frontend (`frontend/src/`)
 

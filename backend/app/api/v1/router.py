@@ -7,6 +7,8 @@ from app.api.v1 import (
     driver_pay_rates,
     drivers,
     expense_concepts,
+    gps_providers,
+    gps_webhook,
     holidays,
     maintenance,
     providers,
@@ -15,6 +17,7 @@ from app.api.v1 import (
     trip_documents,
     trips,
     users,
+    vehicle_positions,
     vehicles,
 )
 
@@ -34,3 +37,6 @@ api_router.include_router(holidays.router)
 api_router.include_router(expense_concepts.router)
 api_router.include_router(trips.router)
 api_router.include_router(trip_documents.router)
+api_router.include_router(gps_providers.router)
+api_router.include_router(gps_webhook.router)
+api_router.include_router(vehicle_positions.router)

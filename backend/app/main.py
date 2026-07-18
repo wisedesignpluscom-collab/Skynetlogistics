@@ -10,14 +10,21 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.jobs.alerts import run_alert_checks
+from app.jobs.gps_partitions import ensure_future_partition
 
-logger = logging.getLogger("app.jobs.alerts")
+logger = logging.getLogger("app.jobs")
 
 
 async def _run_alert_checks_job() -> None:
     async with AsyncSessionLocal() as db:
         created = await run_alert_checks(db)
         logger.info("Alert checks run: %s", created)
+
+
+async def _ensure_gps_partition_job() -> None:
+    async with AsyncSessionLocal() as db:
+        partition_name = await ensure_future_partition(db)
+        logger.info("GPS partition ensured: %s", partition_name)
 
 
 @asynccontextmanager
@@ -27,6 +34,12 @@ async def lifespan(app: FastAPI):
         _run_alert_checks_job,
         CronTrigger(hour=6, minute=0),
         id="daily_alert_checks",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _ensure_gps_partition_job,
+        CronTrigger(day=1, hour=0, minute=30),
+        id="monthly_gps_partition_maintenance",
         replace_existing=True,
     )
     scheduler.start()

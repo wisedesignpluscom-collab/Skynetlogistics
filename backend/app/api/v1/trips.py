@@ -12,7 +12,6 @@ from app.crud import trip as trip_crud
 from app.crud import trip_expense as trip_expense_crud
 from app.crud import trip_payroll as trip_payroll_crud
 from app.crud import vehicle as vehicle_crud
-from app.jobs.alerts import run_alert_checks
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.trip import (
@@ -26,8 +25,8 @@ from app.schemas.trip import (
 )
 from app.schemas.trip_expense import TripExpenseCreate, TripExpenseOut
 from app.schemas.trip_payroll import TripClosePreview
-from app.schemas.vehicle import VehicleUpdate
 from app.services.trip_calculations import calculate_payroll_breakdown
+from app.services.vehicle_odometer import advance_odometer
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -264,8 +263,7 @@ async def close_trip(
     await trip_crud.close(
         db, trip, end_odometer_km=payload.end_odometer_km, freight_cost=payload.freight_cost
     )
-    await vehicle_crud.update(db, vehicle, VehicleUpdate(current_odometer_km=payload.end_odometer_km))
-    await run_alert_checks(db, vehicle_ids=[vehicle.id])
+    await advance_odometer(db, vehicle, payload.end_odometer_km)
 
     return await trip_crud.get_with_details(db, trip.id, current_user.company_id)
 

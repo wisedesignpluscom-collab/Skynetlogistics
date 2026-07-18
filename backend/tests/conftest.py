@@ -14,6 +14,8 @@ from app.models.company_holiday import CompanyHoliday
 from app.models.driver import Driver
 from app.models.driver_pay_rate import DriverPayRate
 from app.models.expense_concept import ExpenseConcept
+from app.models.gps_provider import GPSProvider
+from app.models.gps_provider_vehicle_map import GPSProviderVehicleMap
 from app.models.provider import Provider
 from app.models.rate_table import RateTable
 from app.models.role import Role
@@ -237,6 +239,34 @@ async def company_holiday(db: AsyncSession, company: Company) -> CompanyHoliday:
     await db.commit()
     await db.refresh(h)
     return h
+
+
+@pytest_asyncio.fixture
+async def gps_provider_webhook(db: AsyncSession, company: Company) -> tuple[GPSProvider, str]:
+    from app.crud import gps_provider as gps_provider_crud
+    from app.schemas.gps_provider import GPSProviderCreate
+
+    data = GPSProviderCreate(
+        provider_name="Traker GPS",
+        adapter_type="traker_gps",
+        api_credentials={"api_key": "super-secret-key"},
+        ingestion_mode="webhook",
+    )
+    provider, raw_token = await gps_provider_crud.create(db, company.id, data)
+    assert raw_token is not None
+    return provider, raw_token
+
+
+@pytest_asyncio.fixture
+async def gps_vehicle_map(
+    db: AsyncSession, gps_provider_webhook: tuple[GPSProvider, str], vehicle: Vehicle
+) -> GPSProviderVehicleMap:
+    provider, _ = gps_provider_webhook
+    mapping = GPSProviderVehicleMap(provider_id=provider.id, vehicle_id=vehicle.id, external_device_id="DEV-001")
+    db.add(mapping)
+    await db.commit()
+    await db.refresh(mapping)
+    return mapping
 
 
 async def login(client: AsyncClient, email: str, password: str) -> dict:

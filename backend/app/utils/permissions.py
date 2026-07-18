@@ -9,6 +9,7 @@ MODULES = (
     "alerts",
     "trips",
     "trip_settings",
+    "gps",
 )
 ACTIONS = ("read", "write", "delete")
 
@@ -23,6 +24,7 @@ DEFAULT_ADMIN_PERMISSIONS: dict[str, list[str]] = {
     "alerts": ["read", "write"],
     "trips": ["read", "write", "delete"],
     "trip_settings": ["read", "write", "delete"],
+    "gps": ["read", "write", "delete"],
 }
 
 # Permisos del rol de sistema "Superadmin" (plataforma, cross-tenant).
@@ -37,6 +39,7 @@ SUPERADMIN_PERMISSIONS: dict[str, list[str]] = {
     "alerts": ["read", "write"],
     "trips": ["read", "write", "delete"],
     "trip_settings": ["read", "write", "delete"],
+    "gps": ["read", "write", "delete"],
 }
 
 

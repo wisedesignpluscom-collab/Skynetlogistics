@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     seed_superadmin_email: str = "admin@fleet.local"
     seed_superadmin_password: str = "change-me-please"
 
+    # Clave Fernet (32 bytes url-safe base64) para encriptar app.models.gps_provider.GPSProvider.api_credentials_encrypted.
+    # Generar una nueva por entorno con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    gps_credentials_encryption_key: str = "JQXVPxHnSxbMkpnW7bNhD3WOFkrV6hYnId_QyerkDjw="
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

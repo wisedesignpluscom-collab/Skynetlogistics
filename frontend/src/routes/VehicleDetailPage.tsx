@@ -64,7 +64,12 @@ export function VehicleDetailPage() {
             {vehicle.brand} {vehicle.model} ({vehicle.year}) · {vehicle.current_odometer_km.toLocaleString()} km
           </p>
         </div>
-        <Badge tone={vehicle.status === 'activo' ? 'gold' : 'muted'}>{vehicle.status}</Badge>
+        <div className="flex items-center gap-3">
+          <Link to={`/vehicles/${vehicle.id}/route`} className="text-sm text-text-muted hover:text-gold">
+            Ver ruta GPS
+          </Link>
+          <Badge tone={vehicle.status === 'activo' ? 'gold' : 'muted'}>{vehicle.status}</Badge>
+        </div>
       </div>
 
       <div className="mb-4 flex items-center justify-between">

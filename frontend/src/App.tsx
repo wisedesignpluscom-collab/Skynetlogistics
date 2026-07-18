@@ -5,11 +5,14 @@ import { LoginPage } from './routes/LoginPage'
 import { UsersPage } from './routes/UsersPage'
 import { VehiclesPage } from './routes/VehiclesPage'
 import { VehicleDetailPage } from './routes/VehicleDetailPage'
+import { VehicleRoutePage } from './routes/VehicleRoutePage'
 import { DriversPage } from './routes/DriversPage'
 import { AlertsPage } from './routes/AlertsPage'
 import { TripsPage } from './routes/TripsPage'
 import { TripDetailPage } from './routes/TripDetailPage'
 import { TripSettingsPage } from './routes/TripSettingsPage'
+import { FleetMapPage } from './routes/FleetMapPage'
+import { GPSSettingsPage } from './routes/GPSSettingsPage'
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, isLoading } = useAuth()
@@ -43,6 +46,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <VehicleDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/vehicles/:vehicleId/route"
+        element={
+          <ProtectedRoute>
+            <VehicleRoutePage />
           </ProtectedRoute>
         }
       />
@@ -83,6 +94,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <TripSettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/gps-map"
+        element={
+          <ProtectedRoute>
+            <FleetMapPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/gps-settings"
+        element={
+          <ProtectedRoute>
+            <GPSSettingsPage />
           </ProtectedRoute>
         }
       />
