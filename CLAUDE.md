@@ -11,10 +11,48 @@ diferenciadores propios: integración multi-proveedor GPS, optimización de ruta
 y cálculo de fatiga del conductor. Producto destinado a venta por cliente instalado o SaaS
 multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inicialmente).
 
-> Nota: al momento de escribir este documento, el repositorio no contiene código todavía
-> (repositorio vacío, sin commits). Este archivo documenta el diseño y las reglas de trabajo
-> acordadas para que el desarrollo arranque de forma consistente. Actualízalo a medida que el
-> código real se implemente y la arquitectura se confirme o se desvíe de lo aquí descrito.
+## Estado actual
+
+- **Fase 0 (Core: auth multiempresa, usuarios/roles): completa.** Backend probado (24 tests,
+  pytest + Postgres real) y frontend verificado end-to-end (login, layout con sidebar,
+  gestión de usuarios) contra el backend real.
+- Próxima fase en curso: **Fase 1 (Mantenimiento + Alertas)** — en etapa de propuesta de
+  esquema/endpoints, pendiente de aprobación antes de generar código (ver regla 1).
+
+## Comandos de desarrollo
+
+### Backend (`backend/`)
+
+```bash
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env                 # ajustar DATABASE_URL/JWT_SECRET_KEY si aplica
+
+alembic upgrade head                 # aplica migraciones a la DB de DATABASE_URL
+python -m app.seed                   # crea empresa "Platform", rol Superadmin y el primer usuario
+
+uvicorn app.main:app --reload --port 8000   # dev server
+python -m pytest -v                          # suite completa (requiere Postgres real, no sqlite)
+```
+
+Las migraciones nuevas se generan con `alembic revision --autogenerate -m "mensaje"` después de
+editar los modelos en `app/models/`; siempre revisar el archivo generado antes de aplicarlo.
+
+Los tests usan una base Postgres real (`fleet_test_db` en `tests/conftest.py`, no SQLite) porque
+el modelo depende de tipos nativos de Postgres (UUID, JSONB). Debe existir y tener las
+migraciones aplicadas (`DATABASE_URL=postgresql+asyncpg://.../fleet_test_db alembic upgrade head`)
+antes de correr `pytest`.
+
+### Frontend (`frontend/`)
+
+```bash
+cd frontend
+npm install
+npm run dev          # servidor Vite en :5173, con proxy /api -> backend en :8000
+npx tsc -b           # type-check
+npm run build         # build de producción
+```
 
 ## Stack técnico
 
@@ -33,6 +71,50 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
 3. Reutilizar patrones y componentes ya definidos en fases anteriores (no reinventar).
 4. Toda tabla nueva debe declarar sus relaciones (FK) explícitamente antes de generar migraciones.
 5. Estética: dark-mode premium, tipografía serif para display, acentos oro/cobre (según guía de marca Wise Designs+).
+
+## Arquitectura implementada
+
+### Backend (`backend/app/`)
+
+Capas separadas por responsabilidad, seguidas por todas las fases:
+`models/` (SQLAlchemy async) → `schemas/` (Pydantic, request/response) → `crud/` (acceso a datos,
+recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelven permisos e inyectan
+`company_id` desde el JWT, nunca desde el payload del cliente).
+
+- **Multiempresa (row-level):** cada tabla de negocio tiene `company_id`; toda query de `crud/`
+  la recibe como parámetro obligatorio — nunca se filtra "opcionalmente". El superadmin no tiene
+  bypass implícito: `companies` es el único recurso cross-tenant (ver `api/v1/companies.py`); el
+  resto de endpoints quedan acotados a `current_user.company_id`, superadmin incluido.
+- **RBAC:** `app/core/deps.py::require_permission(module, action)` es la dependency que protegen
+  los routers. Superadmin (`is_superadmin=True`) pasa cualquier check. Los permisos viven en
+  `roles.permissions` (JSONB `{modulo: [acciones]}`), ver `app/utils/permissions.py`.
+- **Auth:** access token JWT de corta vida (`app/core/security.py`); refresh token opaco
+  (`secrets.token_urlsafe`) cuyo hash SHA-256 se guarda en `refresh_tokens` — rota en cada uso
+  (`/auth/refresh` revoca el anterior y emite uno nuevo). Password con bcrypt.
+- **`Base.__mapper_args__ = {"eager_defaults": True}`** (`app/core/database.py`) es necesario en
+  todo modelo nuevo con columnas `server_default`/`onupdate`: sin esto, leer esas columnas tras un
+  flush en modo async revienta con `MissingGreenlet`.
+- **Seed:** `app/seed.py` crea la empresa "Platform", el rol de sistema "Superadmin" y el primer
+  usuario superadmin — es el único punto de entrada para crear el primer usuario del sistema.
+
+### Frontend (`frontend/src/`)
+
+Organización por *feature*, no por tipo de archivo: `features/<dominio>/{api.ts,hooks.ts}` para
+llamadas HTTP y estado; `routes/` son las pantallas; `layouts/` es el shell (`AuthLayout` para
+login, `DashboardLayout` con `Sidebar` para el resto); `components/ui/` son primitivas reusables
+(`Button`, `Input`, `Modal`, `Badge`); `components/<dominio>/` son componentes específicos de un
+feature (ej. `components/users/UserTable.tsx`).
+
+- **Auth:** `features/auth/AuthContext.tsx` guarda `user` + `permissions` en memoria; los tokens
+  viven en `localStorage` (`lib/axios.ts`). El interceptor de respuesta reintenta una vez con
+  refresh automático ante un 401 y, si falla, limpia tokens y redirige a `/login`.
+- **Permisos en UI:** `useAuth().hasPermission(module, action)` — replica la misma lógica que el
+  backend (superadmin siempre `true`, si no busca en `permissions[module]`). Gatea botones/acciones,
+  no reemplaza la validación del backend.
+- **Sidebar:** ya lista para las fases futuras — los módulos no implementados aparecen listados y
+  deshabilitados bajo "Próximamente" en vez de omitirse, para no rehacer el layout en cada fase.
+- **Tailwind v4:** tema (colores oro/cobre, fuente serif de display) definido vía `@theme` en
+  `src/styles/index.css`, no en `tailwind.config.*` — es el patrón nativo de Tailwind v4.
 
 ---
 
