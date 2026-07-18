@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,6 +11,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.jobs.alerts import run_alert_checks
+from app.jobs.fatigue import run_fatigue_checks
 from app.jobs.gps_partitions import ensure_future_partition
 
 logger = logging.getLogger("app.jobs")
@@ -27,6 +29,12 @@ async def _ensure_gps_partition_job() -> None:
         logger.info("GPS partition ensured: %s", partition_name)
 
 
+async def _run_fatigue_checks_job() -> None:
+    async with AsyncSessionLocal() as db:
+        result = await run_fatigue_checks(db)
+        logger.info("Fatigue checks run: %s", result)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler = AsyncIOScheduler()
@@ -40,6 +48,12 @@ async def lifespan(app: FastAPI):
         _ensure_gps_partition_job,
         CronTrigger(day=1, hour=0, minute=30),
         id="monthly_gps_partition_maintenance",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_fatigue_checks_job,
+        IntervalTrigger(minutes=30),
+        id="fatigue_checks",
         replace_existing=True,
     )
     scheduler.start()

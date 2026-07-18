@@ -2,8 +2,10 @@ from app.models.alert import Alert
 from app.models.company import Company
 from app.models.company_holiday import CompanyHoliday
 from app.models.driver import Driver
+from app.models.driver_fatigue_log import DriverFatigueLog
 from app.models.driver_pay_rate import DriverPayRate
 from app.models.expense_concept import ExpenseConcept
+from app.models.fatigue_rule import FatigueRule
 from app.models.gps_provider import GPSProvider
 from app.models.gps_provider_vehicle_map import GPSProviderVehicleMap
 from app.models.maintenance_record import MaintenanceRecord
@@ -40,4 +42,6 @@ __all__ = [
     "GPSProvider",
     "GPSProviderVehicleMap",
     "VehiclePosition",
+    "FatigueRule",
+    "DriverFatigueLog",
 ]

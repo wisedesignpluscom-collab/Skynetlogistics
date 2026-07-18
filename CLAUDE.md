@@ -28,8 +28,14 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
   de esta fase) y frontend verificado end-to-end en navegador (configuración de proveedor GPS con
   token de webhook, mapeo de vehículo a device externo, ingesta simulada vía webhook, mapa en vivo
   de la flota y replay histórico de ruta con Leaflet).
-- Próxima fase: **Fase 4 (Fatiga del conductor)** — sin iniciar, pendiente de propuesta de
-  esquema/endpoints y aprobación antes de generar código (ver regla 1).
+- **Fase 4 (Fatiga del conductor): completa.** Backend probado (116 tests en total, 26 nuevos de
+  esta fase, incluida la fórmula de riesgo reproducida exactamente contra el ejemplo numérico
+  aprobado) y frontend verificado end-to-end en navegador (reglas de fatiga configurables, badge
+  de nivel de riesgo en el listado de conductores, detalle de conductor con historial/gráfico de
+  risk_score, advertencia no bloqueante al crear un viaje con conductor en riesgo alto/crítico,
+  alerta generada automáticamente y visible en el panel de alertas).
+- Próxima fase: **Fase 5 (Neumáticos)** — sin iniciar, pendiente de propuesta de esquema/endpoints
+  y aprobación antes de generar código (ver regla 1).
 
 ## Comandos de desarrollo
 
@@ -149,6 +155,24 @@ recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelve
   mayor al actual, actualizar vehículo + re-chequear mantenimiento" — lo usa tanto el cierre de
   viaje (Fase 2) como la ingesta GPS (Fase 3). Cualquier fuente nueva de lecturas de odómetro debe
   llamar esta función en vez de repetir el patrón.
+- **Cálculo de fatiga (`app/services/fatigue_calculations.py`):** reconstruye ventanas de manejo
+  continuo a partir de `vehicle_positions.ignition_status` (tolerancia de hueco de 15 min entre
+  lecturas; una lectura de más de 30 min de antigüedad ya no cuenta como "manejando ahora") y cae a
+  `trips.started_at/ended_at` cuando el conductor no tiene vehículo asignado o no hay datos GPS —
+  mismo patrón de "GPS primero, trips como fallback" a reutilizar si una fase futura necesita otra
+  señal de actividad del conductor. La fórmula de riesgo (`calculate_risk`) usa el `max()` de las
+  razones continua/24h/7 días (no el promedio) multiplicado por un factor de manejo nocturno, capado
+  en 150; los 4 niveles (`bajo/medio/alto/critico`) son fijos y no calzan 1:1 con los 3 niveles de
+  severidad de `alerts` (Fase 1) — ver `RISK_LEVEL_TO_SEVERITY` en `app/jobs/fatigue.py`.
+- **Job de fatiga (`app/jobs/fatigue.py::run_fatigue_checks`):** corre cada 30 min vía el mismo
+  `AsyncIOScheduler`, recorre conductores con `status="activo"`, cachea `FatigueRule` por
+  `company_id` dentro de la corrida, hace upsert en `driver_fatigue_logs` (`UNIQUE(driver_id, date)`,
+  `ON CONFLICT DO UPDATE`) y genera alertas de riesgo alto/crítico reutilizando
+  `crud/alert.py::create_if_not_exists` (Fase 1) — sin lógica nueva de deduplicación, tal como exige
+  el patrón ya establecido.
+- **Endpoint de fatiga por conductor separado de `trips`:** `GET /drivers/{id}/fatigue-status` es
+  un endpoint de solo consulta que el frontend llama al armar el formulario de viaje para mostrar
+  una advertencia no bloqueante — `POST /trips` en sí no valida ni bloquea por fatiga, a propósito.
 
 ### Frontend (`frontend/src/`)
 
@@ -168,6 +192,18 @@ feature (ej. `components/users/UserTable.tsx`).
   deshabilitados bajo "Próximamente" en vez de omitirse, para no rehacer el layout en cada fase.
 - **Tailwind v4:** tema (colores oro/cobre, fuente serif de display) definido vía `@theme` en
   `src/styles/index.css`, no en `tailwind.config.*` — es el patrón nativo de Tailwind v4.
+- **Pantallas de configuración sin ruta propia en el sidebar:** siguiendo el mismo patrón que
+  `trip-settings` (Fase 2) y `gps-settings` (Fase 3), `fatigue-settings` no tiene entrada directa en
+  el `Sidebar` — se accede vía un botón "Reglas de fatiga" dentro de `DriversPage`. El detalle de
+  conductor (`/drivers/:driverId`, con historial/gráfico de `risk_score`) se llega haciendo click en
+  el nombre del conductor en `DriverTable`.
+- **Advertencia de fatiga en creación de viaje:** `TripFormModal` llama a
+  `useDriverFatigueStatus(driverId)` (que pega contra `GET /drivers/{id}/fatigue-status`) cada vez
+  que cambia el conductor seleccionado y muestra un mensaje no bloqueante si el nivel es alto/crítico
+  — el formulario sigue siendo enviable, solo advierte.
+- **Gráfico de historial de fatiga:** `DriverDetailPage` dibuja un bar chart simple con divs/CSS
+  (sin librería de gráficos nueva), coloreado por `risk_level`, igual de simple que el resto de
+  visualizaciones del proyecto (mapa GPS es la única que usa una librería externa, Leaflet).
 
 ---
 

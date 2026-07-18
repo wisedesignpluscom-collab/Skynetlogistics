@@ -7,6 +7,8 @@ import { VehiclesPage } from './routes/VehiclesPage'
 import { VehicleDetailPage } from './routes/VehicleDetailPage'
 import { VehicleRoutePage } from './routes/VehicleRoutePage'
 import { DriversPage } from './routes/DriversPage'
+import { DriverDetailPage } from './routes/DriverDetailPage'
+import { FatigueSettingsPage } from './routes/FatigueSettingsPage'
 import { AlertsPage } from './routes/AlertsPage'
 import { TripsPage } from './routes/TripsPage'
 import { TripDetailPage } from './routes/TripDetailPage'
@@ -62,6 +64,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DriversPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/drivers/:driverId"
+        element={
+          <ProtectedRoute>
+            <DriverDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/fatigue-settings"
+        element={
+          <ProtectedRoute>
+            <FatigueSettingsPage />
           </ProtectedRoute>
         }
       />

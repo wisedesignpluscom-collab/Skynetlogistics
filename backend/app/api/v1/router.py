@@ -4,9 +4,11 @@ from app.api.v1 import (
     alerts,
     auth,
     companies,
+    driver_fatigue,
     driver_pay_rates,
     drivers,
     expense_concepts,
+    fatigue_rules,
     gps_providers,
     gps_webhook,
     holidays,
@@ -27,6 +29,7 @@ api_router.include_router(companies.router)
 api_router.include_router(users.router)
 api_router.include_router(roles.router)
 api_router.include_router(vehicles.router)
+api_router.include_router(driver_fatigue.router)
 api_router.include_router(drivers.router)
 api_router.include_router(providers.router)
 api_router.include_router(maintenance.router)
@@ -40,3 +43,5 @@ api_router.include_router(trip_documents.router)
 api_router.include_router(gps_providers.router)
 api_router.include_router(gps_webhook.router)
 api_router.include_router(vehicle_positions.router)
+api_router.include_router(fatigue_rules.router)
+api_router.include_router(driver_fatigue.router)

@@ -4,7 +4,10 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { useVehicles } from '../../features/vehicles/hooks'
 import { useDrivers } from '../../features/drivers/hooks'
+import { useDriverFatigueStatus } from '../../features/fatigue/hooks'
 import type { TripPayload } from '../../features/trips/api'
+
+const WARN_RISK_LEVELS = new Set(['alto', 'critico'])
 
 interface TripFormModalProps {
   onClose: () => void
@@ -27,6 +30,8 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
   const [isRoundTrip, setIsRoundTrip] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { status: fatigueStatus } = useDriverFatigueStatus(driverId || null)
+  const showFatigueWarning = !!fatigueStatus && WARN_RISK_LEVELS.has(fatigueStatus.risk_level)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -91,6 +96,12 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
               </option>
             ))}
           </select>
+          {showFatigueWarning && (
+            <p className="mt-1 text-sm text-danger">
+              ⚠ Este conductor tiene un riesgo de fatiga {fatigueStatus?.risk_level} (score{' '}
+              {fatigueStatus?.risk_score}). Puedes continuar, pero considera asignar otro conductor.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1">

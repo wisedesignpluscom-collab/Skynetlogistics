@@ -29,6 +29,11 @@ export async function listDrivers(params: DriverListParams = {}): Promise<Page<D
   return data
 }
 
+export async function getDriver(id: string): Promise<Driver> {
+  const { data } = await api.get<Driver>(`/drivers/${id}`)
+  return data
+}
+
 export async function createDriver(payload: DriverPayload): Promise<Driver> {
   const { data } = await api.post<Driver>('/drivers', payload)
   return data

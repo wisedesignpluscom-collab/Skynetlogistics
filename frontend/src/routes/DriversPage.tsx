@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { DashboardLayout } from '../layouts/DashboardLayout'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -6,6 +7,7 @@ import { DriverTable } from '../components/drivers/DriverTable'
 import { DriverFormModal } from '../components/drivers/DriverFormModal'
 import { useDrivers } from '../features/drivers/hooks'
 import { createDriver, deactivateDriver, updateDriver } from '../features/drivers/api'
+import { useFatigueSummary } from '../features/fatigue/hooks'
 import { useAuth } from '../features/auth/AuthContext'
 import type { Driver } from '../types/driver'
 import type { DriverPayload, DriverUpdatePayload } from '../features/drivers/api'
@@ -16,6 +18,7 @@ export function DriversPage() {
   const { hasPermission } = useAuth()
   const [search, setSearch] = useState('')
   const { data, isLoading, error, reload } = useDrivers({ search: search || undefined, page_size: 50 })
+  const { summaryByDriver } = useFatigueSummary()
   const [modalState, setModalState] = useState<ModalState>(null)
 
   const canWrite = hasPermission('drivers', 'write')
@@ -40,7 +43,14 @@ export function DriversPage() {
     <DashboardLayout>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl text-text">Conductores</h1>
-        {canWrite && <Button onClick={() => setModalState({ mode: 'create' })}>Nuevo conductor</Button>}
+        <div className="flex gap-3">
+          {hasPermission('fatigue', 'read') && (
+            <Link to="/fatigue-settings">
+              <Button variant="secondary">Reglas de fatiga</Button>
+            </Link>
+          )}
+          {canWrite && <Button onClick={() => setModalState({ mode: 'create' })}>Nuevo conductor</Button>}
+        </div>
       </div>
 
       <div className="mb-4 max-w-xs">
@@ -58,6 +68,7 @@ export function DriversPage() {
           drivers={data.items}
           canWrite={canWrite}
           canDelete={canDelete}
+          fatigueByDriver={summaryByDriver}
           onEdit={(driver) => setModalState({ mode: 'edit', driver })}
           onDeactivate={handleDeactivate}
         />
