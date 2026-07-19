@@ -8,6 +8,8 @@ from app.models.expense_concept import ExpenseConcept
 from app.models.fatigue_rule import FatigueRule
 from app.models.gps_provider import GPSProvider
 from app.models.gps_provider_vehicle_map import GPSProviderVehicleMap
+from app.models.inventory_item import InventoryItem
+from app.models.inventory_movement import InventoryMovement
 from app.models.maintenance_record import MaintenanceRecord
 from app.models.maintenance_task import MaintenanceTask
 from app.models.provider import Provider
@@ -52,4 +54,6 @@ __all__ = [
     "Tire",
     "TireMovement",
     "TireSettings",
+    "InventoryItem",
+    "InventoryMovement",
 ]

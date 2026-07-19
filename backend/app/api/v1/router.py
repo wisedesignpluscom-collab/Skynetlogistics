@@ -12,6 +12,8 @@ from app.api.v1 import (
     gps_providers,
     gps_webhook,
     holidays,
+    inventory_items,
+    inventory_movements,
     maintenance,
     providers,
     rate_tables,
@@ -53,3 +55,5 @@ api_router.include_router(warehouses.router)
 api_router.include_router(tires.router)
 api_router.include_router(tire_movements.router)
 api_router.include_router(tire_settings.router)
+api_router.include_router(inventory_items.router)
+api_router.include_router(inventory_movements.router)

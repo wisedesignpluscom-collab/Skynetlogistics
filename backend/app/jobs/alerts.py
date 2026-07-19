@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud import tire_settings as tire_settings_crud
 from app.crud.alert import create_if_not_exists
 from app.models.driver import Driver
+from app.models.inventory_item import InventoryItem
 from app.models.maintenance_task import MaintenanceTask
 from app.models.tire import Tire
 from app.models.vehicle import Vehicle
@@ -161,19 +162,54 @@ async def _check_tire_disparity(db: AsyncSession, vehicle_ids: list[uuid.UUID] |
     return created
 
 
+async def _check_low_stock(db: AsyncSession, item_ids: list[uuid.UUID] | None = None) -> int:
+    """Genera una alerta cuando `inventory_items.quantity` cae a o por debajo de `min_stock`."""
+    query = select(InventoryItem).where(InventoryItem.quantity <= InventoryItem.min_stock)
+    if item_ids is not None:
+        query = query.where(InventoryItem.id.in_(item_ids))
+    result = await db.execute(query)
+
+    created = 0
+    for item in result.scalars().all():
+        message = f"Stock bajo de {item.name} ({item.sku}): {item.quantity} {item.unit} (mínimo {item.min_stock})"
+        inserted = await create_if_not_exists(
+            db,
+            company_id=item.company_id,
+            type="low_stock",
+            entity_type="inventory_item",
+            entity_id=item.id,
+            message=message,
+            severity="media",
+        )
+        if inserted:
+            created += 1
+    return created
+
+
 async def run_alert_checks(
-    db: AsyncSession, *, today: date | None = None, vehicle_ids: list[uuid.UUID] | None = None
+    db: AsyncSession,
+    *,
+    today: date | None = None,
+    vehicle_ids: list[uuid.UUID] | None = None,
+    item_ids: list[uuid.UUID] | None = None,
 ) -> dict[str, int]:
     """Ejecuta los chequeos y devuelve cuántas alertas nuevas se crearon de cada tipo.
 
-    Por defecto (`vehicle_ids=None`) revisa todos los vehículos y conductores de todas las
-    empresas — es el comportamiento del job diario programado. Si se pasa `vehicle_ids`, solo
-    revisa mantenimiento y disparidad de neumáticos de esos vehículos (uso: revalidar tras
-    actualizar el odómetro al cerrar un viaje en Fase 2, o tras un movimiento de neumático en
-    Fase 5, sin reimplementar la lógica de umbrales/severidad/anti-duplicados). En ese caso se
-    omite el chequeo de licencias, que no depende del odómetro del vehículo.
+    Por defecto (`vehicle_ids=None`, `item_ids=None`) revisa todos los vehículos, conductores e
+    ítems de inventario de todas las empresas — es el comportamiento del job diario programado.
+    Si se pasa `vehicle_ids`, solo revisa mantenimiento y disparidad de neumáticos de esos
+    vehículos (uso: revalidar tras actualizar el odómetro al cerrar un viaje en Fase 2, o tras
+    un movimiento de neumático en Fase 5). Si se pasa `item_ids`, solo revisa stock bajo de esos
+    ítems (uso: revalidar tras un movimiento de inventario en Fase 6). Ambos parámetros de
+    scoping son independientes — mismo patrón "extender con parámetro opcional" que el resto de
+    fases, sin reimplementar la lógica de umbrales/severidad/anti-duplicados.
     """
     effective_today = today or datetime.now(timezone.utc).date()
+
+    if item_ids is not None:
+        low_stock_created = await _check_low_stock(db, item_ids)
+        return {"maintenance_due": 0, "license_expiring": 0, "tire_disparity": 0, "low_stock": low_stock_created}
+
     maintenance_created = await _check_maintenance_tasks(db, effective_today, vehicle_ids)
     tire_disparity_created = await _check_tire_disparity(db, vehicle_ids)
     if vehicle_ids is not None:
@@ -181,10 +217,13 @@ async def run_alert_checks(
             "maintenance_due": maintenance_created,
             "license_expiring": 0,
             "tire_disparity": tire_disparity_created,
+            "low_stock": 0,
         }
     license_created = await _check_driver_licenses(db, effective_today)
+    low_stock_created = await _check_low_stock(db)
     return {
         "maintenance_due": maintenance_created,
         "license_expiring": license_created,
+        "low_stock": low_stock_created,
         "tire_disparity": tire_disparity_created,
     }

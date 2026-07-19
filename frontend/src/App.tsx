@@ -21,6 +21,8 @@ import { TireSettingsPage } from './routes/TireSettingsPage'
 import { TirePerformancePage } from './routes/TirePerformancePage'
 import { WarehousesPage } from './routes/WarehousesPage'
 import { VehicleTiresPage } from './routes/VehicleTiresPage'
+import { InventoryPage } from './routes/InventoryPage'
+import { InventoryItemDetailPage } from './routes/InventoryItemDetailPage'
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, isLoading } = useAuth()
@@ -182,6 +184,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <VehicleTiresPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/inventory"
+        element={
+          <ProtectedRoute>
+            <InventoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/inventory/:itemId"
+        element={
+          <ProtectedRoute>
+            <InventoryItemDetailPage />
           </ProtectedRoute>
         }
       />

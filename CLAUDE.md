@@ -40,7 +40,13 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
   taller vía clic en posición, movimiento en lote, cálculo de km por período y acumulado, alerta
   de disparidad de espesor entre neumáticos "morocha" con umbral configurable, reporte de
   rendimiento por marca/modelo).
-- Próxima fase: **Fase 6 (Inventario/repuestos)** — sin iniciar, pendiente de propuesta de
+- **Fase 6 (Inventario/repuestos): completa.** Backend probado (165 tests en total, 21 nuevos de
+  esta fase) y frontend verificado end-to-end en navegador (alta de ítems de inventario con stock
+  inicial en cero, entrada/salida/ajuste de stock vía bitácora de movimientos, badge de stock bajo
+  en el listado con filtro dedicado, alerta automática al caer a o bajo el mínimo configurado,
+  rechazo de salidas que dejarían el stock negativo). `Inventario` reemplaza el placeholder de
+  "Próximamente" en el sidebar.
+- Próxima fase: **Fase 7 (Optimizador de rutas)** — sin iniciar, pendiente de propuesta de
   esquema/endpoints y aprobación antes de generar código (ver regla 1).
 
 ## Comandos de desarrollo
@@ -203,6 +209,23 @@ recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelve
   rendimiento por marca/modelo (`GET /tires/analytics/performance`), sin duplicar el emparejamiento.
 - **`warehouses`** es la versión mínima acordada para esta fase (`id, company_id, name, location`) —
   Fase 6 (Inventario) la extiende sin romper Fase 5.
+- **`app/services/inventory_movements.py::apply_movement`** centraliza la transición de stock de un
+  ítem (`entrada`/`salida`/`ajuste`): calcula el delta según el tipo (`entrada`/`salida` siempre con
+  cantidad positiva, `ajuste` con delta con signo explícito), valida que `quantity` nunca quede
+  negativa, actualiza `inventory_items` y crea el `inventory_movement` de forma atómica — mismo
+  patrón que `tire_movements.py::apply_movement` (Fase 5). `quantity` en `inventory_items` es un
+  campo derivado: `InventoryItemUpdate` (PATCH) no lo acepta, solo se modifica vía movimientos.
+- **Alerta de stock bajo no es un job nuevo:** extiende `run_alert_checks` (`app/jobs/alerts.py`) con
+  un parámetro `item_ids` independiente de `vehicle_ids` (ambos scoping opcionales, mutuamente
+  excluyentes en la práctica) — genera alerta `low_stock` (`entity_type="inventory_item"`) cuando
+  `quantity <= min_stock`, reutilizando `create_if_not_exists` (Fase 1) para el anti-duplicado. Se
+  dispara scoped al ítem tras cada movimiento, y también en el barrido diario completo.
+- **Validación de `warehouse_id`/`vehicle_id` cross-tenant en `inventory_items`/`inventory_movements`:**
+  a diferencia del `warehouse_id` opcional de `tires` (Fase 5, sin validar contra `company_id`), aquí
+  sí se valida explícitamente (`warehouse_crud.get`/`vehicle_crud.get` con `company_id`) antes de
+  crear/actualizar, devolviendo 404 si el recurso referenciado es de otra empresa — cierra un hueco
+  de aislamiento multiempresa que Fase 5 había dejado abierto; aplicar el mismo criterio a cualquier
+  FK cross-tabla nueva en fases futuras.
 
 ### Frontend (`frontend/src/`)
 
@@ -246,6 +269,12 @@ feature (ej. `components/users/UserTable.tsx`).
   secundarios en `TiresPage`. `Neumáticos` sí tiene entrada directa en el `Sidebar` (reemplaza el
   placeholder de "Próximamente"); el diagrama por vehículo se llega desde `VehicleDetailPage` con un
   link "Neumáticos", igual que "Ver ruta GPS" (Fase 3).
+- **`InventoryPage` reutiliza `useWarehouses`/`Warehouse` de `features/tires`** en vez de duplicar el
+  fetch de almacenes — el botón "Almacenes" de `InventoryPage` reusa `WarehousesPage` (Fase 5) tal
+  cual, sin cambios, y por eso queda gateado por el permiso `tires` (no `inventory`) igual que en el
+  backend. `Inventario` sí tiene entrada directa en el `Sidebar` (reemplaza el placeholder de
+  "Próximamente"); el detalle de ítem (`/inventory/:itemId`, con historial de movimientos) se llega
+  haciendo click en el SKU en `InventoryTable`, mismo patrón que `TireTable`/`DriverTable`.
 
 ---
 
@@ -282,13 +311,15 @@ feature (ej. `components/users/UserTable.tsx`).
 - **tire_settings** — id, company_id (unique), disparity_threshold_mm — umbral configurable del
   motor de disparidad, mismo patrón que `fatigue_rules` (Fase 4)
 - **warehouses** — id, company_id, name, location — versión mínima introducida en Fase 5 (ver
-  Inventario más abajo); Fase 6 la extiende sin romper Fase 5
+  Inventario más abajo); Fase 6 la reutiliza tal cual, sin agregarle campos
 
 ### Inventario
-- **warehouses** — ver Neumáticos (Fase 5); Fase 6 le agrega los campos que necesite sin romper la
-  compatibilidad con `tires`/`tire_movements`
-- **inventory_items** — id, warehouse_id, sku, name, quantity, min_stock, unit_cost
-- **inventory_movements** — id, item_id, vehicle_id (nullable), type (entrada/salida), quantity, reference_doc
+- **warehouses** — ver Neumáticos (Fase 5); Fase 6 no le agregó campos, se reutiliza tal cual
+- **inventory_items** — id, company_id, warehouse_id, sku (único por empresa), name, unit,
+  quantity (derivado, solo vía movimientos), min_stock, unit_cost
+- **inventory_movements** — id, company_id, item_id, vehicle_id (nullable), movement_type
+  (entrada/salida/ajuste), quantity, unit_cost (nullable, snapshot en entrada), reference_doc
+  (nullable), notes, recorded_by, created_at
 
 ### GPS / Telemetría (hypertable — TimescaleDB)
 - **gps_providers** — id, company_id, provider_name, api_credentials (encriptado), adapter_type
