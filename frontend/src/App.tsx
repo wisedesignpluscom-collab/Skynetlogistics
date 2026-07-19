@@ -12,6 +12,7 @@ import { FatigueSettingsPage } from './routes/FatigueSettingsPage'
 import { AlertsPage } from './routes/AlertsPage'
 import { TripsPage } from './routes/TripsPage'
 import { TripDetailPage } from './routes/TripDetailPage'
+import { TripRoutePage } from './routes/TripRoutePage'
 import { TripSettingsPage } from './routes/TripSettingsPage'
 import { FleetMapPage } from './routes/FleetMapPage'
 import { GPSSettingsPage } from './routes/GPSSettingsPage'
@@ -112,6 +113,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <TripDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trips/:tripId/route"
+        element={
+          <ProtectedRoute>
+            <TripRoutePage />
           </ProtectedRoute>
         }
       />

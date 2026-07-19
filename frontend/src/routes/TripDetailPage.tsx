@@ -107,6 +107,9 @@ export function TripDetailPage() {
         >
           Recibo de viáticos (imprimir)
         </a>
+        <Link to={`/trips/${trip.id}/route`} className="text-sm text-text-muted hover:text-gold">
+          Ruta planeada
+        </Link>
       </div>
 
       {canWrite && trip.status === 'planificado' && (

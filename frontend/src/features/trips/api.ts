@@ -26,6 +26,11 @@ export interface TripPayload {
   destination: string
   cargo_type: string
   is_round_trip?: boolean
+  // Coordenadas opcionales (Fase 7): si vienen las 4, al crear el viaje se calcula la ruta.
+  origin_lat?: number | null
+  origin_lng?: number | null
+  destination_lat?: number | null
+  destination_lng?: number | null
 }
 
 export interface TripUpdatePayload {

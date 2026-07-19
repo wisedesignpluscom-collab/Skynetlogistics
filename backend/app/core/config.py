@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Generar una nueva por entorno con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     gps_credentials_encryption_key: str = "JQXVPxHnSxbMkpnW7bNhD3WOFkrV6hYnId_QyerkDjw="
 
+    # Motor de ruteo (Fase 7). "mapbox" usa la Directions API (requiere mapbox_access_token);
+    # "fake" es un motor determinista en-memoria para desarrollo/tests sin red. Ver
+    # app/routing_engines/. Para migrar a OSRM self-hosted se agrega "osrm" al registry.
+    routing_engine: str = "fake"
+    mapbox_access_token: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

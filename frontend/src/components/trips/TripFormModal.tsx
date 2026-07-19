@@ -28,6 +28,10 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
   const [destination, setDestination] = useState('')
   const [cargoType, setCargoType] = useState('')
   const [isRoundTrip, setIsRoundTrip] = useState(true)
+  const [originLat, setOriginLat] = useState('')
+  const [originLng, setOriginLng] = useState('')
+  const [destLat, setDestLat] = useState('')
+  const [destLng, setDestLng] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { status: fatigueStatus } = useDriverFatigueStatus(driverId || null)
@@ -38,6 +42,7 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
     setError(null)
     setIsSubmitting(true)
     try {
+      const hasCoords = originLat && originLng && destLat && destLng
       await onSubmit({
         vehicle_id: vehicleId,
         driver_id: driverId,
@@ -46,6 +51,14 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
         destination,
         cargo_type: cargoType,
         is_round_trip: isRoundTrip,
+        ...(hasCoords
+          ? {
+              origin_lat: Number(originLat),
+              origin_lng: Number(originLng),
+              destination_lat: Number(destLat),
+              destination_lng: Number(destLng),
+            }
+          : {}),
       })
       onClose()
     } catch {
@@ -151,6 +164,18 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
           />
           Viaje de ida y vuelta
         </label>
+
+        <details className="rounded-lg border border-border p-3">
+          <summary className="cursor-pointer text-sm text-text-muted">
+            Coordenadas para calcular la ruta (opcional)
+          </summary>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Input id="origin_lat" label="Origen — lat" type="number" step="any" value={originLat} onChange={(e) => setOriginLat(e.target.value)} />
+            <Input id="origin_lng" label="Origen — lng" type="number" step="any" value={originLng} onChange={(e) => setOriginLng(e.target.value)} />
+            <Input id="destination_lat" label="Destino — lat" type="number" step="any" value={destLat} onChange={(e) => setDestLat(e.target.value)} />
+            <Input id="destination_lng" label="Destino — lng" type="number" step="any" value={destLng} onChange={(e) => setDestLng(e.target.value)} />
+          </div>
+        </details>
 
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="mt-2 flex justify-end gap-3">

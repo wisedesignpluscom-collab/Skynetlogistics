@@ -16,6 +16,9 @@ from app.models.provider import Provider
 from app.models.rate_table import RateTable
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
+from app.models.route_plan import RoutePlan
+from app.models.route_recalculation import RouteRecalculation
+from app.models.route_settings import RouteSettings
 from app.models.tire import Tire
 from app.models.tire_movement import TireMovement
 from app.models.tire_settings import TireSettings
@@ -56,4 +59,7 @@ __all__ = [
     "TireSettings",
     "InventoryItem",
     "InventoryMovement",
+    "RoutePlan",
+    "RouteRecalculation",
+    "RouteSettings",
 ]

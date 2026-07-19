@@ -68,11 +68,15 @@ async def create(
     distance_km: float | None,
     freight_cost: float | None,
 ) -> Trip:
+    # Las coords (Fase 7) no son columnas de `trips`: se consumen aparte para el route_plan.
+    trip_fields = data.model_dump(
+        exclude={"origin_lat", "origin_lng", "destination_lat", "destination_lng"}
+    )
     trip = Trip(
         company_id=company_id,
         distance_km=distance_km,
         freight_cost=freight_cost,
-        **data.model_dump(),
+        **trip_fields,
     )
     db.add(trip)
     await db.commit()

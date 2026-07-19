@@ -15,6 +15,12 @@ class TripCreate(BaseModel):
     destination: str = Field(min_length=1, max_length=255)
     cargo_type: str = Field(min_length=1, max_length=100)
     is_round_trip: bool = True
+    # Coordenadas opcionales (Fase 7): si vienen las 4, al crear el viaje se calcula y guarda
+    # automáticamente el route_plan — sin tocar distance_km (ese es el dato operativo del flete).
+    origin_lat: float | None = Field(default=None, ge=-90, le=90)
+    origin_lng: float | None = Field(default=None, ge=-180, le=180)
+    destination_lat: float | None = Field(default=None, ge=-90, le=90)
+    destination_lng: float | None = Field(default=None, ge=-180, le=180)
 
 
 class TripUpdate(BaseModel):

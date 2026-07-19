@@ -46,8 +46,15 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
   en el listado con filtro dedicado, alerta automática al caer a o bajo el mínimo configurado,
   rechazo de salidas que dejarían el stock negativo). `Inventario` reemplaza el placeholder de
   "Próximamente" en el sidebar.
-- Próxima fase: **Fase 7 (Optimizador de rutas)** — sin iniciar, pendiente de propuesta de
-  esquema/endpoints y aprobación antes de generar código (ver regla 1).
+- **Fase 7A (Optimizador de rutas — ruteo punto a punto): completa.** Backend probado (191 tests en
+  total, 26 nuevos de esta fase, incluida la geometría de desvío verificada contra valores calculados
+  a mano) y frontend verificado end-to-end en navegador (ruta planeada sobre mapa Leaflet, posición
+  real del vehículo superpuesta, cálculo bajo demanda con coords, recálculo manual, y — vía una
+  posición GPS simulada por webhook — recálculo automático por desvío con banner de notificación e
+  historial, más alerta `route_deviation` en el panel). El motor de ruteo activo en dev/tests es
+  `fake` (determinista, sin red); Mapbox Directions queda detrás del mismo adapter para producción.
+- Próxima sub-etapa: **Fase 7B (Optimización multi-parada / VRP con OR-Tools)** — solo esbozada, sin
+  iniciar; pendiente de propuesta detallada y aprobación antes de generar código (ver regla 1).
 
 ## Comandos de desarrollo
 
@@ -90,8 +97,9 @@ npm run build         # build de producción
 - **Frontend:** React + Vite + TailwindCSS
 - **Base de datos:** PostgreSQL + extensión TimescaleDB (hypertables para datos GPS/series temporales)
 - **Auth:** JWT + RBAC (roles por módulo, multiempresa)
-- **Motor de ruteo:** OSRM self-hosted (fase posterior)
-- **Optimización VRP:** Google OR-Tools (fase posterior)
+- **Motor de ruteo:** Mapbox Directions API en 7A (detrás de un adapter `RoutingEngine`, `fake` en
+  tests); OSRM self-hosted queda como motor alternativo futuro sin cambios de código
+- **Optimización VRP:** Google OR-Tools (Fase 7B, aún no implementada)
 - **Colas/jobs:** para ingesta GPS y cálculo de alertas (ej. Celery + Redis, o APScheduler si el volumen es bajo al inicio)
 
 ## Reglas de trabajo con Claude Code
@@ -226,6 +234,32 @@ recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelve
   crear/actualizar, devolviendo 404 si el recurso referenciado es de otra empresa — cierra un hueco
   de aislamiento multiempresa que Fase 5 había dejado abierto; aplicar el mismo criterio a cualquier
   FK cross-tabla nueva en fases futuras.
+- **Motores de ruteo (`app/routing_engines/`, Fase 7):** mismo patrón que `gps_adapters/` — interfaz
+  `RoutingEngine.route()` + `ENGINE_REGISTRY`, motor activo elegido por `settings.routing_engine`.
+  `FakeRoutingEngine` (determinista, interpola una recta y estima con haversine) es el default en
+  dev/tests para no tocar la red; `MapboxRoutingEngine` (Directions API, token en
+  `settings.mapbox_access_token`) es el de producción. Migrar a OSRM self-hosted en el futuro es un
+  motor nuevo en el registry + cambio de config, sin tocar servicios ni endpoints. Los tests son
+  herméticos porque corren sobre `fake`.
+- **Geometría de desvío (`app/services/route_geometry.py`):** función pura (sin red/DB) que calcula
+  la distancia mínima punto-a-polyline en metros vía proyección equirectangular local (escala lng por
+  `cos(lat)`), testeable con coords fijas contra valores a mano — mismo criterio que las fórmulas de
+  nómina/fatiga. La geometría se maneja siempre como `[[lng, lat], ...]` (orden GeoJSON) en
+  `route_plans.geometry`; el frontend la invierte a `[lat, lng]` para Leaflet.
+- **Planificación de rutas (`app/services/route_planning.py`):** único punto que invoca el motor y
+  escribe geometría — lo comparten el auto-trigger al crear viaje, el cálculo bajo demanda, el
+  recálculo manual y el automático por desvío. `compute_route_plan` NUNCA toca `trips.distance_km`
+  (dato operativo del flete, Fase 2); la distancia estimada vive solo en
+  `route_plans.calculated_distance_km`. `check_deviation_and_recalculate` (llamada best-effort desde
+  el webhook GPS) busca el viaje `en_curso` del vehículo, mide el desvío contra la polyline, respeta
+  `route_settings.deviation_threshold_m` (default 150 m) y `recalc_cooldown_min` (default 5 min),
+  recalcula, registra `route_recalculations(reason='desvio')` y genera alerta `route_deviation`
+  reutilizando `create_if_not_exists` (Fase 1) — sin lógica nueva de deduplicación.
+- **Auto-trigger de ruteo en `POST /trips`:** `TripCreate` acepta 4 coords opcionales; si vienen las
+  cuatro, tras crear el viaje se calcula el `route_plan` (best-effort, no bloquea la creación si el
+  motor falla). `trip_crud.create` excluye las coords del `model_dump` porque no son columnas de
+  `trips`. `route_settings` sigue el patrón get-or-create por empresa (como `fatigue_rules`), y todo
+  el módulo de ruteo se gatea con el permiso `trips` existente (no se creó un módulo nuevo).
 
 ### Frontend (`frontend/src/`)
 
@@ -275,6 +309,13 @@ feature (ej. `components/users/UserTable.tsx`).
   backend. `Inventario` sí tiene entrada directa en el `Sidebar` (reemplaza el placeholder de
   "Próximamente"); el detalle de ítem (`/inventory/:itemId`, con historial de movimientos) se llega
   haciendo click en el SKU en `InventoryTable`, mismo patrón que `TireTable`/`DriverTable`.
+- **Ruta planeada (Fase 7) sin ruta propia en el `Sidebar`:** `TripRoutePage` (`/trips/:tripId/route`)
+  se llega vía un link "Ruta planeada" dentro de `TripDetailPage`, igual que "Ver ruta GPS" (Fase 3).
+  Reutiliza el mismo mapa Leaflet + tiles oscuros de CARTO de Fase 3: dibuja la polyline planeada
+  (dorada) más la última posición real del vehículo (`CircleMarker` azul, vía `getLatestPosition` de
+  Fase 3), un banner rojo cuando el último recálculo fue por desvío, y el historial de recálculos. El
+  `TripFormModal` incluye un `<details>` opcional con las 4 coords para disparar el cálculo de ruta al
+  crear el viaje. Sin librería de mapas nueva — Leaflet sigue siendo la única externa del proyecto.
 
 ---
 
@@ -327,8 +368,17 @@ feature (ej. `components/users/UserTable.tsx`).
 - **gps_provider_vehicle_map** — vehicle_id, provider_id, external_device_id
 
 ### Optimización de rutas
-- **route_plans** — id, trip_id, origin_coords, destination_coords, waypoints (JSON), calculated_distance_km, calculated_duration_min, engine_used
-- **route_recalculations** — id, route_plan_id, reason (desvío/tráfico), timestamp, new_route_data
+- **route_plans** — id, company_id, trip_id (unique — un plan vigente por viaje),
+  origin_lat/origin_lng, destination_lat/destination_lng (Numeric(9,6), en vez de un `*_coords`
+  opaco), geometry (JSONB, GeoJSON LineString `[[lng,lat],...]` — agregada respecto al sketch
+  original: necesaria para dibujar la ruta y medir el desvío), waypoints (JSONB, vacío en 7A; 7B lo
+  llena), calculated_distance_km, calculated_duration_min, engine_used
+- **route_recalculations** — id, company_id, route_plan_id (FK CASCADE), reason
+  (desvio/manual/trafico), deviation_m (nullable), trigger_lat/trigger_lng (nullable),
+  new_distance_km, new_duration_min, new_route_data (JSONB), created_at
+- **route_settings** — id, company_id (unique), deviation_threshold_m (default 150),
+  recalc_cooldown_min (default 5) — umbral/cooldown configurables por empresa, mismo patrón que
+  `fatigue_rules` (Fase 4) / `tire_settings` (Fase 5)
 
 ### Fatiga del conductor
 - **fatigue_rules** — id, company_id, max_continuous_hours, max_24h_hours, max_7day_hours, night_driving_weight

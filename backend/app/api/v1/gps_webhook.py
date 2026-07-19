@@ -16,6 +16,7 @@ from app.crud import gps_provider_vehicle_map as gps_map_crud
 from app.crud import vehicle as vehicle_crud
 from app.crud import vehicle_position as vehicle_position_crud
 from app.gps_adapters import get_adapter
+from app.services.route_planning import check_deviation_and_recalculate
 from app.services.vehicle_odometer import advance_odometer
 
 router = APIRouter(prefix="/gps", tags=["gps"])
@@ -60,5 +61,16 @@ async def receive_gps_webhook(
         vehicle = await vehicle_crud.get(db, mapping.vehicle_id, provider.company_id)
         if vehicle is not None:
             await advance_odometer(db, vehicle, normalized.odometer_km)
+
+    # Recálculo automático por desvío (Fase 7): compara esta posición contra la ruta planeada del
+    # viaje en curso y, si supera el umbral configurado, recalcula + genera alerta. Best-effort.
+    await check_deviation_and_recalculate(
+        db,
+        vehicle_id=mapping.vehicle_id,
+        company_id=provider.company_id,
+        lat=normalized.lat,
+        lng=normalized.lng,
+        now=normalized.timestamp,
+    )
 
     return {"status": "ok"}

@@ -18,6 +18,7 @@ from app.api.v1 import (
     providers,
     rate_tables,
     roles,
+    routes,
     tire_movements,
     tire_settings,
     tires,
@@ -57,3 +58,4 @@ api_router.include_router(tire_movements.router)
 api_router.include_router(tire_settings.router)
 api_router.include_router(inventory_items.router)
 api_router.include_router(inventory_movements.router)
+api_router.include_router(routes.router)

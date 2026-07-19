@@ -25,6 +25,7 @@ from app.schemas.trip import (
 )
 from app.schemas.trip_expense import TripExpenseCreate, TripExpenseOut
 from app.schemas.trip_payroll import TripClosePreview
+from app.services.route_planning import compute_route_plan
 from app.services.trip_calculations import calculate_payroll_breakdown
 from app.services.vehicle_odometer import advance_odometer
 
@@ -94,9 +95,33 @@ async def create_trip(
     distance_km = float(rate_match.distance_km) if rate_match else None
     freight_cost = float(rate_match.freight_amount) if rate_match else None
 
-    return await trip_crud.create(
+    trip = await trip_crud.create(
         db, current_user.company_id, payload, distance_km=distance_km, freight_cost=freight_cost
     )
+
+    # Auto-trigger de ruteo (Fase 7): si el usuario proveyó las 4 coordenadas, calcula y guarda el
+    # route_plan. No toca trip.distance_km (dato operativo del flete). Best-effort: si el motor de
+    # ruteo falla, el viaje ya quedó creado igual — la ruta se puede calcular luego bajo demanda.
+    if None not in (
+        payload.origin_lat,
+        payload.origin_lng,
+        payload.destination_lat,
+        payload.destination_lng,
+    ):
+        try:
+            await compute_route_plan(
+                db,
+                company_id=current_user.company_id,
+                trip_id=trip.id,
+                origin_lat=payload.origin_lat,
+                origin_lng=payload.origin_lng,
+                destination_lat=payload.destination_lat,
+                destination_lng=payload.destination_lng,
+            )
+        except Exception:  # noqa: BLE001 — no bloquear la creación del viaje por un fallo de ruteo
+            pass
+
+    return trip
 
 
 @router.get("/{trip_id}", response_model=TripWithDetailsOut)
