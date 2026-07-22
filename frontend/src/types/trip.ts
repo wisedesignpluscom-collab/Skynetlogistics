@@ -6,6 +6,7 @@ export interface Trip {
   vehicle_id: string
   driver_id: string
   trailer_id: string | null
+  client_id: string | null
   origin: string
   destination: string
   distance_km: number | null
@@ -18,6 +19,7 @@ export interface Trip {
   advance_payment: number
   started_at: string | null
   ended_at: string | null
+  custom_data?: Record<string, unknown>
   created_at: string
   updated_at: string
 }

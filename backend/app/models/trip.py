@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -30,6 +30,9 @@ class Trip(Base, UUIDPKMixin, TimestampMixin):
     trailer_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("vehicles.id"), nullable=True
     )
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True
+    )
     origin: Mapped[str] = mapped_column(String(255), nullable=False)
     destination: Mapped[str] = mapped_column(String(255), nullable=False)
     distance_km: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
@@ -42,10 +45,12 @@ class Trip(Base, UUIDPKMixin, TimestampMixin):
     advance_payment: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    custom_data: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
 
     vehicle: Mapped["Vehicle"] = relationship(foreign_keys=[vehicle_id])
     trailer: Mapped["Vehicle | None"] = relationship(foreign_keys=[trailer_id])
     driver: Mapped["Driver"] = relationship()
+    client: Mapped["Client | None"] = relationship()
     expenses: Mapped[list["TripExpense"]] = relationship(
         back_populates="trip", cascade="all, delete-orphan"
     )

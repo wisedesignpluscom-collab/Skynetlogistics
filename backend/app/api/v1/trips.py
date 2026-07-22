@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.services.custom_fields import validate_entity_custom_data
 from app.core.deps import require_permission
 from app.crud import driver as driver_crud
 from app.crud import rate_table as rate_table_crud
@@ -28,6 +29,7 @@ from app.schemas.trip_payroll import TripClosePreview
 from app.services.route_planning import compute_route_plan
 from app.services.trip_calculations import calculate_payroll_breakdown
 from app.services.vehicle_odometer import advance_odometer
+from app.services.workflows import run_workflows
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -95,6 +97,9 @@ async def create_trip(
     distance_km = float(rate_match.distance_km) if rate_match else None
     freight_cost = float(rate_match.freight_amount) if rate_match else None
 
+    payload.custom_data = await validate_entity_custom_data(
+        db, current_user.company_id, "trip", payload.custom_data, payload=payload
+    )
     trip = await trip_crud.create(
         db, current_user.company_id, payload, distance_km=distance_km, freight_cost=freight_cost
     )
@@ -121,6 +126,7 @@ async def create_trip(
         except Exception:  # noqa: BLE001 — no bloquear la creación del viaje por un fallo de ruteo
             pass
 
+    await run_workflows(db, company_id=current_user.company_id, entity_type="trip", event="creado", entity=trip)
     return trip
 
 
@@ -146,7 +152,13 @@ async def update_trip(
     trip = await _get_trip_or_404(db, trip_id, current_user.company_id)
     if trip.status != "planificado":
         raise HTTPException(status.HTTP_409_CONFLICT, "Solo se puede editar un viaje planificado")
-    return await trip_crud.update(db, trip, payload)
+    if payload.custom_data is not None:
+        payload.custom_data = await validate_entity_custom_data(
+            db, current_user.company_id, "trip", payload.custom_data, payload=payload
+        )
+    updated = await trip_crud.update(db, trip, payload)
+    await run_workflows(db, company_id=current_user.company_id, entity_type="trip", event="actualizado", entity=updated)
+    return updated
 
 
 @router.post("/{trip_id}/start", response_model=TripOut)

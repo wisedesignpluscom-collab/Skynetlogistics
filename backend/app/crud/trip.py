@@ -14,6 +14,21 @@ async def get(db: AsyncSession, trip_id: uuid.UUID, company_id: uuid.UUID) -> Tr
     return result.scalar_one_or_none()
 
 
+async def list_active_ids_for_driver(
+    db: AsyncSession, driver_id: uuid.UUID, company_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """IDs de los trips del conductor que aún reparten (planificados o en curso) — usado por el
+    portal del conductor (Fase 9B) para mostrar "mis entregas"."""
+    result = await db.execute(
+        select(Trip.id).where(
+            Trip.company_id == company_id,
+            Trip.driver_id == driver_id,
+            Trip.status.in_(("planificado", "en_curso")),
+        )
+    )
+    return [row[0] for row in result]
+
+
 async def get_with_details(db: AsyncSession, trip_id: uuid.UUID, company_id: uuid.UUID) -> Trip | None:
     result = await db.execute(
         select(Trip)

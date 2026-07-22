@@ -22,6 +22,7 @@ export interface TripPayload {
   vehicle_id: string
   driver_id: string
   trailer_id?: string | null
+  client_id?: string | null
   origin: string
   destination: string
   cargo_type: string
@@ -31,6 +32,7 @@ export interface TripPayload {
   origin_lng?: number | null
   destination_lat?: number | null
   destination_lng?: number | null
+  custom_data?: Record<string, unknown>
 }
 
 export interface TripUpdatePayload {

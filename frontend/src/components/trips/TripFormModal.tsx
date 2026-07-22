@@ -2,10 +2,14 @@ import { useState, type FormEvent } from 'react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { CustomFieldsSection } from '../config/CustomFieldsSection'
+import { useSystemFieldRules } from '../../features/config/useSystemFieldRules'
 import { useVehicles } from '../../features/vehicles/hooks'
 import { useDrivers } from '../../features/drivers/hooks'
 import { useDriverFatigueStatus } from '../../features/fatigue/hooks'
+import { useClients } from '../../features/clients/hooks'
 import type { TripPayload } from '../../features/trips/api'
+import type { CustomData } from '../../types/customField'
 
 const WARN_RISK_LEVELS = new Set(['alto', 'critico'])
 
@@ -17,13 +21,16 @@ interface TripFormModalProps {
 export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
   const { data: vehiclesPage } = useVehicles({ page_size: 100, status_filter: 'activo' })
   const { data: driversPage } = useDrivers({ page_size: 100, status_filter: 'activo' })
+  const { data: clientsPage } = useClients({ page_size: 100 })
   const vehicles = vehiclesPage?.items ?? []
   const trailers = vehicles.filter((v) => v.type === 'remolque')
   const tractors = vehicles.filter((v) => v.type !== 'remolque')
+  const clients = (clientsPage?.items ?? []).filter((c) => c.is_active)
 
   const [vehicleId, setVehicleId] = useState('')
   const [driverId, setDriverId] = useState('')
   const [trailerId, setTrailerId] = useState('')
+  const [clientId, setClientId] = useState('')
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
   const [cargoType, setCargoType] = useState('')
@@ -32,10 +39,13 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
   const [originLng, setOriginLng] = useState('')
   const [destLat, setDestLat] = useState('')
   const [destLng, setDestLng] = useState('')
+  const [customData, setCustomData] = useState<CustomData>({})
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { status: fatigueStatus } = useDriverFatigueStatus(driverId || null)
   const showFatigueWarning = !!fatigueStatus && WARN_RISK_LEVELS.has(fatigueStatus.risk_level)
+
+  const rules = useSystemFieldRules('trip', { cargo_type: cargoType, is_round_trip: isRoundTrip }, customData)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -47,6 +57,7 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
         vehicle_id: vehicleId,
         driver_id: driverId,
         trailer_id: trailerId || null,
+        client_id: clientId || null,
         origin,
         destination,
         cargo_type: cargoType,
@@ -59,6 +70,7 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
               destination_lng: Number(destLng),
             }
           : {}),
+        custom_data: customData,
       })
       onClose()
     } catch {
@@ -136,6 +148,30 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
           </select>
         </div>
 
+        <div className="flex flex-col gap-1">
+          <label className="text-sm text-text-muted" htmlFor="client">
+            Cliente (opcional)
+          </label>
+          <select
+            id="client"
+            value={clientId}
+            onChange={(e) => {
+              const id = e.target.value
+              setClientId(id)
+              const selected = clients.find((c) => c.id === id)
+              if (selected?.default_cargo_type) setCargoType(selected.default_cargo_type)
+            }}
+            className="rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+          >
+            <option value="">Sin cliente</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <Input id="origin" label="Origen" value={origin} onChange={(e) => setOrigin(e.target.value)} required />
           <Input
@@ -147,23 +183,27 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
           />
         </div>
 
-        <Input
-          id="cargo_type"
-          label="Tipo de carga"
-          value={cargoType}
-          onChange={(e) => setCargoType(e.target.value)}
-          required
-        />
-
-        <label className="flex items-center gap-2 text-sm text-text-muted">
-          <input
-            type="checkbox"
-            checked={isRoundTrip}
-            onChange={(e) => setIsRoundTrip(e.target.checked)}
-            className="rounded border-border"
+        {!rules.isHidden('cargo_type') && (
+          <Input
+            id="cargo_type"
+            label={rules.isRequired('cargo_type') ? 'Tipo de carga *' : 'Tipo de carga'}
+            value={cargoType}
+            onChange={(e) => setCargoType(e.target.value)}
+            required
           />
-          Viaje de ida y vuelta
-        </label>
+        )}
+
+        {!rules.isHidden('is_round_trip') && (
+          <label className="flex items-center gap-2 text-sm text-text-muted">
+            <input
+              type="checkbox"
+              checked={isRoundTrip}
+              onChange={(e) => setIsRoundTrip(e.target.checked)}
+              className="rounded border-border"
+            />
+            Viaje de ida y vuelta
+          </label>
+        )}
 
         <details className="rounded-lg border border-border p-3">
           <summary className="cursor-pointer text-sm text-text-muted">
@@ -176,6 +216,14 @@ export function TripFormModal({ onClose, onSubmit }: TripFormModalProps) {
             <Input id="destination_lng" label="Destino — lng" type="number" step="any" value={destLng} onChange={(e) => setDestLng(e.target.value)} />
           </div>
         </details>
+
+        <CustomFieldsSection
+          entityType="trip"
+          value={customData}
+          onChange={setCustomData}
+          systemValues={{ cargo_type: cargoType, is_round_trip: isRoundTrip }}
+          rules={rules}
+        />
 
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="mt-2 flex justify-end gap-3">
