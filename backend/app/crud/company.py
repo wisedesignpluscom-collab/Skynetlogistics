@@ -33,7 +33,7 @@ async def list_paginated(
 
 
 async def create(db: AsyncSession, data: CompanyCreate) -> Company:
-    company = Company(name=data.name, tax_id=data.tax_id, plan=data.plan)
+    company = Company(**data.model_dump())
     db.add(company)
     await db.commit()
     await db.refresh(company)
