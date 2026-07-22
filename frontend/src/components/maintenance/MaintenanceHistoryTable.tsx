@@ -1,4 +1,4 @@
-import type { MaintenanceTaskWithRecords } from '../../types/maintenance'
+import type { MaintenanceTaskWithRecords, TrafficLight } from '../../types/maintenance'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 
@@ -16,6 +16,18 @@ const statusTone = {
   cancelada: 'muted',
 } as const
 
+const trafficLightTone: Record<TrafficLight, 'success' | 'warning' | 'danger'> = {
+  verde: 'success',
+  amarillo: 'warning',
+  rojo: 'danger',
+}
+
+const trafficLightLabel: Record<TrafficLight, string> = {
+  verde: 'Al día',
+  amarillo: 'Por vencer',
+  rojo: 'Vencida',
+}
+
 export function MaintenanceHistoryTable({ tasks, canComplete, onComplete }: MaintenanceHistoryTableProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-border">
@@ -25,6 +37,7 @@ export function MaintenanceHistoryTable({ tasks, canComplete, onComplete }: Main
             <th className="px-4 py-3 font-medium">Tipo</th>
             <th className="px-4 py-3 font-medium">Vence</th>
             <th className="px-4 py-3 font-medium">Estado</th>
+            <th className="px-4 py-3 font-medium">Semáforo</th>
             <th className="px-4 py-3 font-medium">Costo</th>
             <th className="px-4 py-3" />
           </tr>
@@ -41,6 +54,15 @@ export function MaintenanceHistoryTable({ tasks, canComplete, onComplete }: Main
                 <td className="px-4 py-3">
                   <Badge tone={statusTone[task.status]}>{task.status}</Badge>
                 </td>
+                <td className="px-4 py-3">
+                  {task.traffic_light ? (
+                    <Badge tone={trafficLightTone[task.traffic_light]}>
+                      {trafficLightLabel[task.traffic_light]}
+                    </Badge>
+                  ) : (
+                    <span className="text-text-muted">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-text-muted">
                   {task.records.length > 0 ? `$${totalCost.toFixed(2)}` : '—'}
                 </td>
@@ -56,7 +78,7 @@ export function MaintenanceHistoryTable({ tasks, canComplete, onComplete }: Main
           })}
           {tasks.length === 0 && (
             <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-text-muted">
+              <td colSpan={6} className="px-4 py-8 text-center text-text-muted">
                 Este vehículo no tiene historial de mantenimiento.
               </td>
             </tr>

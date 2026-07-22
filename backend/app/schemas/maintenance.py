@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -14,6 +15,7 @@ class MaintenanceTaskCreate(BaseModel):
     due_km: int | None = Field(default=None, ge=0)
     responsible_id: uuid.UUID | None = None
     description: str | None = None
+    custom_data: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def check_due_matches_scheduled_by(self) -> "MaintenanceTaskCreate":
@@ -30,6 +32,7 @@ class MaintenanceTaskUpdate(BaseModel):
     due_km: int | None = Field(default=None, ge=0)
     responsible_id: uuid.UUID | None = None
     description: str | None = None
+    custom_data: dict[str, Any] | None = None
 
 
 class MaintenanceTaskOut(BaseModel):
@@ -45,8 +48,10 @@ class MaintenanceTaskOut(BaseModel):
     status: str
     responsible_id: uuid.UUID | None
     description: str | None
+    custom_data: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
+    traffic_light: str | None = None
 
 
 class MaintenanceRecordCreate(BaseModel):
