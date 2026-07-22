@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,17 @@ class Settings(BaseSettings):
     env: str = "development"
 
     database_url: str = "postgresql+asyncpg://fleet:fleet_dev_pw@localhost:5432/fleet_db"
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_asyncpg_driver(cls, value: str) -> str:
+        # Hosts como Render/Railway/Heroku entregan DATABASE_URL como
+        # postgres:// o postgresql://; el driver async necesita +asyncpg.
+        if value.startswith("postgres://"):
+            return "postgresql+asyncpg://" + value[len("postgres://") :]
+        if value.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + value[len("postgresql://") :]
+        return value
 
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"

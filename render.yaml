@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: skynet-logistics-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: skynet-logistics-db
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: GPS_CREDENTIALS_ENCRYPTION_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "http://localhost:5173"
+      - key: SEED_SUPERADMIN_EMAIL
+        value: admin@fleetops.dev
+      - key: SEED_SUPERADMIN_PASSWORD
+        generateValue: true
+      - key: ROUTING_ENGINE
+        value: fake
+
+databases:
+  - name: skynet-logistics-db
+    plan: free
