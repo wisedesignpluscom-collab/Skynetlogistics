@@ -60,6 +60,58 @@ async def compute_route_plan(
     )
 
 
+async def compute_multi_stop_route_plan(
+    db: AsyncSession,
+    *,
+    company_id: uuid.UUID,
+    trip_id: uuid.UUID,
+    origin_lat: float,
+    origin_lng: float,
+    stops: list[dict],
+) -> RoutePlan:
+    """Como `compute_route_plan`, pero para un trip con paradas intermedias (Fase 7B/VRP).
+
+    No se extiende `RoutingEngine.route()` con soporte nativo de waypoints: en su lugar se llama
+    al motor activo una vez por tramo (origen→parada1→parada2→...→última parada) y se concatenan
+    los resultados — mismo motor, mismo "único punto de entrada" que `compute_route_plan`, sin
+    tocar la interfaz de 7A. `stops` ya viene ordenado por el solver VRP;
+    cada elemento es `{"lat": .., "lng": .., "label": ..}` y el último define el destino del trip.
+    """
+    if not stops:
+        raise ValueError("compute_multi_stop_route_plan requiere al menos una parada")
+
+    engine = get_engine()
+    leg_points = [(origin_lat, origin_lng)] + [(s["lat"], s["lng"]) for s in stops]
+
+    geometry: list[list[float]] = []
+    total_distance_km = 0.0
+    total_duration_min = 0
+    for (lat_a, lng_a), (lat_b, lng_b) in zip(leg_points, leg_points[1:]):
+        leg = await engine.route(
+            origin_lat=lat_a, origin_lng=lng_a, destination_lat=lat_b, destination_lng=lng_b
+        )
+        # Evita duplicar el punto de unión entre tramos consecutivos.
+        geometry.extend(leg.geometry[1:] if geometry else leg.geometry)
+        total_distance_km += leg.distance_km
+        total_duration_min += leg.duration_min
+
+    destination_lat, destination_lng = leg_points[-1]
+    return await route_plan_crud.upsert_for_trip(
+        db,
+        company_id=company_id,
+        trip_id=trip_id,
+        origin_lat=origin_lat,
+        origin_lng=origin_lng,
+        destination_lat=destination_lat,
+        destination_lng=destination_lng,
+        geometry=geometry,
+        calculated_distance_km=round(total_distance_km, 2),
+        calculated_duration_min=total_duration_min,
+        engine_used=engine.engine_name,
+        waypoints=stops,
+    )
+
+
 async def recalculate_route(
     db: AsyncSession,
     plan: RoutePlan,
@@ -167,4 +219,9 @@ async def check_deviation_and_recalculate(
     return recalc
 
 
-__all__ = ["compute_route_plan", "recalculate_route", "check_deviation_and_recalculate"]
+__all__ = [
+    "compute_route_plan",
+    "compute_multi_stop_route_plan",
+    "recalculate_route",
+    "check_deviation_and_recalculate",
+]

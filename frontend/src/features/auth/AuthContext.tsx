@@ -7,8 +7,9 @@ import type { Permissions } from '../../types/role'
 interface AuthContextValue {
   user: UserWithRole | null
   permissions: Permissions
+  driverId: string | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<{ driverId: string | null }>
   logout: () => Promise<void>
   hasPermission: (module: string, action: string) => boolean
 }
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserWithRole | null>(null)
   const [permissions, setPermissions] = useState<Permissions>({})
+  const [driverId, setDriverId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -30,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const me = await meRequest()
         setUser(me.user)
         setPermissions(me.permissions)
+        setDriverId(me.driver_id)
       } catch {
         clearTokens()
       } finally {
@@ -45,6 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const me = await meRequest()
     setUser(me.user)
     setPermissions(me.permissions)
+    setDriverId(me.driver_id)
+    return { driverId: me.driver_id }
   }
 
   async function logout() {
@@ -59,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearTokens()
     setUser(null)
     setPermissions({})
+    setDriverId(null)
   }
 
   function hasPermission(module: string, action: string): boolean {
@@ -67,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, permissions, isLoading, login, logout, hasPermission }}>
+    <AuthContext.Provider value={{ user, permissions, driverId, isLoading, login, logout, hasPermission }}>
       {children}
     </AuthContext.Provider>
   )

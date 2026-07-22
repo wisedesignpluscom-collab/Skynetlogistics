@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     routing_engine: str = "fake"
     mapbox_access_token: str = ""
 
+    # Carpeta local donde se guardan adjuntos de reportes de incidencia (Fase 8). Servida
+    # públicamente bajo /uploads (ver app/main.py). Migrar a un bucket S3-compatible más adelante
+    # es un cambio acotado a app/core/file_storage.py, sin tocar los endpoints que lo llaman.
+    uploads_dir: str = "uploads"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

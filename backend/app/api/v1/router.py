@@ -3,7 +3,16 @@ from fastapi import APIRouter
 from app.api.v1 import (
     alerts,
     auth,
+    chat,
+    clients,
     companies,
+    custom_fields,
+    form_rules,
+    workflows,
+    delivery_goods,
+    delivery_orders,
+    driver_document_types,
+    driver_documents,
     driver_fatigue,
     driver_pay_rates,
     drivers,
@@ -12,9 +21,11 @@ from app.api.v1 import (
     gps_providers,
     gps_webhook,
     holidays,
+    incident_reports,
     inventory_items,
     inventory_movements,
     maintenance,
+    maintenance_settings,
     providers,
     rate_tables,
     roles,
@@ -25,9 +36,14 @@ from app.api.v1 import (
     trip_documents,
     trips,
     users,
+    vehicle_document_types,
+    vehicle_documents,
+    vehicle_owners,
     vehicle_positions,
     vehicles,
+    vrp,
     warehouses,
+    ws,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -36,16 +52,23 @@ api_router.include_router(companies.router)
 api_router.include_router(users.router)
 api_router.include_router(roles.router)
 api_router.include_router(vehicles.router)
+api_router.include_router(vehicle_owners.router)
+api_router.include_router(vehicle_documents.router)
+api_router.include_router(vehicle_document_types.router)
 api_router.include_router(driver_fatigue.router)
 api_router.include_router(drivers.router)
+api_router.include_router(driver_documents.router)
+api_router.include_router(driver_document_types.router)
 api_router.include_router(providers.router)
 api_router.include_router(maintenance.router)
+api_router.include_router(maintenance_settings.router)
 api_router.include_router(alerts.router)
 api_router.include_router(rate_tables.router)
 api_router.include_router(driver_pay_rates.router)
 api_router.include_router(holidays.router)
 api_router.include_router(expense_concepts.router)
 api_router.include_router(trips.router)
+api_router.include_router(clients.router)
 api_router.include_router(trip_documents.router)
 api_router.include_router(gps_providers.router)
 api_router.include_router(gps_webhook.router)
@@ -59,3 +82,12 @@ api_router.include_router(tire_settings.router)
 api_router.include_router(inventory_items.router)
 api_router.include_router(inventory_movements.router)
 api_router.include_router(routes.router)
+api_router.include_router(vrp.router)
+api_router.include_router(incident_reports.router)
+api_router.include_router(chat.router)
+api_router.include_router(ws.router)
+api_router.include_router(delivery_goods.router)
+api_router.include_router(delivery_orders.router)
+api_router.include_router(custom_fields.router)
+api_router.include_router(form_rules.router)
+api_router.include_router(workflows.router)

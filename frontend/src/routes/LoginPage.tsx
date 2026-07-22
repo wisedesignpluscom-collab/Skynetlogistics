@@ -18,8 +18,8 @@ export function LoginPage() {
     setError(null)
     setIsSubmitting(true)
     try {
-      await login(email, password)
-      navigate('/users', { replace: true })
+      const { driverId } = await login(email, password)
+      navigate(driverId ? '/driver' : '/users', { replace: true })
     } catch {
       setError('Email o password incorrectos')
     } finally {

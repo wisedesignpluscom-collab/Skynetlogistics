@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.services.custom_fields import validate_entity_custom_data
 from app.core.deps import require_permission
 from app.crud import tire as tire_crud
 from app.crud import tire_movement as tire_movement_crud
@@ -14,6 +15,7 @@ from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.tire import TireCreate, TireDetailOut, TireOut, TirePerformanceRow, TireUpdate
 from app.services.tire_km import calculate_tire_km, compute_performance
+from app.services.workflows import run_workflows
 
 router = APIRouter(prefix="/tires", tags=["tires"])
 
@@ -50,7 +52,12 @@ async def create_tire(
 ) -> TireOut:
     if await tire_crud.get_by_unique_code(db, current_user.company_id, payload.unique_code) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un neumático con ese código")
-    return await tire_crud.create(db, current_user.company_id, payload)
+    payload.custom_data = await validate_entity_custom_data(
+        db, current_user.company_id, "tire", payload.custom_data, payload=payload
+    )
+    tire = await tire_crud.create(db, current_user.company_id, payload)
+    await run_workflows(db, company_id=current_user.company_id, entity_type="tire", event="creado", entity=tire)
+    return tire
 
 
 @router.get("/analytics/performance", response_model=list[TirePerformanceRow])
@@ -102,7 +109,12 @@ async def update_tire(
     tire = await tire_crud.get(db, tire_id, current_user.company_id)
     if tire is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Neumático no encontrado")
+    if payload.custom_data is not None:
+        payload.custom_data = await validate_entity_custom_data(
+            db, current_user.company_id, "tire", payload.custom_data, payload=payload
+        )
     updated = await tire_crud.update(db, tire, payload)
     if payload.current_thickness_mm is not None and updated.status == "instalado" and updated.vehicle_id:
         await run_alert_checks(db, vehicle_ids=[updated.vehicle_id])
+    await run_workflows(db, company_id=current_user.company_id, entity_type="tire", event="actualizado", entity=updated)
     return updated

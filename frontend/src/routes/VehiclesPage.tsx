@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { DashboardLayout } from '../layouts/DashboardLayout'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -47,7 +48,12 @@ export function VehiclesPage() {
     <DashboardLayout>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl text-text">Vehículos</h1>
-        {canWrite && <Button onClick={() => setModalState({ mode: 'create' })}>Nuevo vehículo</Button>}
+        <div className="flex gap-3">
+          <Link to="/vehicle-owners">
+            <Button variant="secondary">Propietarios</Button>
+          </Link>
+          {canWrite && <Button onClick={() => setModalState({ mode: 'create' })}>Nuevo vehículo</Button>}
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3">

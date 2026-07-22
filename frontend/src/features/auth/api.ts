@@ -7,11 +7,13 @@ export interface LoginResponse {
   refresh_token: string
   token_type: string
   user: UserWithRole
+  driver_id: string | null
 }
 
 export interface MeResponse {
   user: UserWithRole
   permissions: Permissions
+  driver_id: string | null
 }
 
 export async function loginRequest(email: string, password: string): Promise<LoginResponse> {

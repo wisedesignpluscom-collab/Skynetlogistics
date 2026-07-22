@@ -4,11 +4,13 @@ from collections.abc import Callable, Coroutine
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.crud import user as user_crud
+from app.models.driver import Driver
 from app.models.user import User
 from app.utils.permissions import has_permission
 
@@ -46,6 +48,26 @@ async def get_current_superadmin(current_user: User = Depends(get_current_user))
     if not current_user.is_superadmin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Requiere privilegios de superadmin")
     return current_user
+
+
+async def get_current_driver(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Driver:
+    """Resuelve el `Driver` vinculado al usuario logueado (`drivers.user_id`).
+
+    Usado por los endpoints driver-facing de Fase 8 (reportes/chat) para derivar siempre
+    `driver_id` desde el token en vez de aceptarlo del cliente — es el mecanismo de aislamiento
+    "solo lo propio" (ver `DRIVER_SUGGESTED_PERMISSIONS` en app/utils/permissions.py), no una
+    extensión genérica de `require_permission`.
+    """
+    result = await db.execute(select(Driver).where(Driver.user_id == current_user.id))
+    driver = result.scalar_one_or_none()
+    if driver is None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Este usuario no está vinculado a un conductor"
+        )
+    return driver
 
 
 def require_permission(module: str, action: str) -> Callable[..., Coroutine[None, None, User]]:

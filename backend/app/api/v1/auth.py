@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.security import create_access_token, verify_password
+from app.crud import driver as driver_crud
 from app.crud import refresh_token as refresh_token_crud
 from app.crud import user as user_crud
 from app.models.user import User
@@ -40,7 +41,13 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
     _, raw_refresh_token = await refresh_token_crud.create_for_user(db, user.id)
     await user_crud.touch_last_login(db, user)
 
-    return LoginResponse(access_token=access_token, refresh_token=raw_refresh_token, user=user)
+    driver = await driver_crud.get_by_user_id(db, user.id)
+    return LoginResponse(
+        access_token=access_token,
+        refresh_token=raw_refresh_token,
+        user=user,
+        driver_id=driver.id if driver else None,
+    )
 
 
 @router.post("/refresh", response_model=TokenPair)
@@ -71,6 +78,9 @@ async def logout(payload: LogoutRequest, db: AsyncSession = Depends(get_db)) -> 
 
 
 @router.get("/me", response_model=MeResponse)
-async def me(current_user: User = Depends(get_current_user)) -> MeResponse:
+async def me(
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> MeResponse:
     permissions = SUPERADMIN_PERMISSIONS if current_user.is_superadmin else current_user.role.permissions
-    return MeResponse(user=current_user, permissions=permissions)
+    driver = await driver_crud.get_by_user_id(db, current_user.id)
+    return MeResponse(user=current_user, permissions=permissions, driver_id=driver.id if driver else None)

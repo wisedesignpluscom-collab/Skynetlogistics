@@ -53,8 +53,186 @@ multiempresa para el mercado latinoamericano (Venezuela, Colombia, México inici
   posición GPS simulada por webhook — recálculo automático por desvío con banner de notificación e
   historial, más alerta `route_deviation` en el panel). El motor de ruteo activo en dev/tests es
   `fake` (determinista, sin red); Mapbox Directions queda detrás del mismo adapter para producción.
-- Próxima sub-etapa: **Fase 7B (Optimización multi-parada / VRP con OR-Tools)** — solo esbozada, sin
-  iniciar; pendiente de propuesta detallada y aprobación antes de generar código (ver regla 1).
+- **Fase 7B (Optimización multi-parada / VRP con OR-Tools): completa.** Backend probado (231 tests
+  en total, 40 nuevos de esta fase, incluida la matriz de distancias y el solver verificados con
+  coordenadas fijas) y frontend verificado end-to-end en navegador (captura de paradas, selector de
+  vehículos candidatos con default "todos los disponibles", propuesta del solver en mapa Leaflet
+  multi-vehículo con distancia/duración estimadas por vehículo, confirmación que crea un trip por
+  vehículo con su ruta real ya calculada, descarte de una propuesta). Alcance acordado: VRP
+  multi-vehículo sin restricciones de capacidad ni ventanas de tiempo, rutas abiertas (sin retorno
+  al punto de partida), paradas capturadas manualmente antes de optimizar (no a partir de trips ya
+  creados). `VrpOptimizationPage` no tiene entrada propia en el `Sidebar` — se llega vía un botón
+  "Optimizar rutas (VRP)" en `TripsPage`, mismo patrón que `trip-settings`.
+- **Fase 8 (Reportes de conductor en tiempo real + chat interno): completa.** Backend probado
+  (243 tests en total, 12 nuevos de esta fase — reportes de incidencia con aislamiento "solo lo
+  propio", alerta automática de severidad alta/crítica, y chat conductor↔despachador) y frontend
+  verificado end-to-end en navegador (login del conductor → portal móvil-first → reporte de
+  accidente crítico → alerta generada en el panel del despachador → chat en vivo bidireccional por
+  WebSocket sin recargar → despachador resuelve el reporte con notas). Alcance:
+  el conductor entra con login propio (`drivers.user_id` → rol "Conductor" con permisos acotados) a
+  un portal móvil-first separado (`DriverPortalLayout`, sin `Sidebar`) donde reporta incidencias
+  (10 tipos + "otro": accidente/siniestro/avería/falta de viáticos/multa/retraso/pernocte/mercancía
+  dañada/retención en aduana/emergencia de salud) y chatea; el despachador ve todo en `IncidentsPage`
+  (badge "Reportes" en el `Sidebar`, gateado por permiso `incidents`) y responde el chat en vivo vía
+  WebSocket. **Esta fase renumera el plan original: lo que era Fase 8 (Reportes/BI) pasa a Fase 9, y
+  Fase 9 (módulos auxiliares) a Fase 10.**
+- **Fase 9 (Reparto/delivery + CVRP): en progreso, spec aprobado.** Alcance acordado: catálogo de
+  mercancía de reparto con control de stock, pedidos de reparto enlazados al optimizador VRP, CVRP
+  con capacidad por vehículo, y confirmación de entrega por conductor + despachador. Se desarrolla en
+  3 sub-fases (9A/9B/9C), revisando cada una antes de la siguiente.
+  - **9A (catálogo de mercancía de reparto + stock): completa.** Backend probado (250 tests en total,
+    7 nuevos) y frontend verificado end-to-end en navegador (alta de mercancía con peso/volumen por
+    unidad, entrada de stock vía bitácora de movimientos, badge de stock bajo, alerta automática
+    `low_stock_delivery`). `delivery_goods`/`delivery_goods_movements` reutilizan EXACTAMENTE el
+    patrón de Inventario (Fase 6): `apply_movement` atómico, stock derivado (solo vía movimientos), y
+    `run_alert_checks` extendido con `goods_ids` (sin reimplementar deduplicación). Módulo nuevo
+    `delivery` (permiso propio), entrada "Reparto" en el `Sidebar`. El peso/volumen por unidad se
+    captura ya en 9A porque alimentará la demanda de cada parada en el CVRP de 9C.
+  - **9B (pedidos de reparto + confirmación de entrega): completa.** Backend probado (7 nuevos
+    tests) y frontend verificado end-to-end en navegador (despachador crea pedido con líneas de
+    mercancía → asigna a un viaje del conductor, lo que DESCUENTA stock automáticamente → el
+    conductor ve la entrega en su portal móvil de Fase 8 y la marca "entregado"). `delivery_orders`
+    (FK a `clients`/`trips`) + `delivery_order_items` (FK a `delivery_goods`). Ciclo:
+    `pendiente → asignado → en_ruta → entregado/fallido`. `services/delivery_dispatch.py` centraliza
+    las transiciones y el efecto sobre el stock: `assign_to_trip` valida stock de TODAS las líneas
+    antes de descontar cualquiera y descuenta vía `delivery_goods_movements.apply_movement` (9A);
+    `mark_failed(return_stock=True)` reingresa la mercancía. **Este servicio lo reutilizará el
+    confirm del VRP en 9C** (mismo criterio "un único punto de entrada" que `vrp_planning`). La
+    entrega/fallo la pueden marcar TANTO el despachador (permiso `delivery`) COMO el conductor
+    (`get_current_driver` + validación de que el pedido está en uno de sus trips activos) — el actor
+    se resuelve dentro del endpoint, mismo patrón que el chat de Fase 8. El `Sidebar` "Reparto" ahora
+    apunta a `DeliveryOrdersPage` (pedidos); el catálogo de mercancía (9A) queda como botón
+    secundario. El conductor accede a "Mis entregas" desde su portal.
+  - **9C (enlace CVRP: capacidad en vehicles, solver con dimensión de capacidad, optimizar desde
+    pedidos, descuento de stock al despachar): completa.** Backend probado (15 nuevos tests — solver
+    con capacidad verificado con coords fijas, optimizar desde pedidos, despacho que descuenta stock,
+    infactibilidad por exceso de carga) y frontend verificado end-to-end en navegador (modo "desde
+    pedidos pendientes" en `VrpOptimizationPage` → propuesta con carga vs capacidad por vehículo
+    (74/200 kg, 0.48/5 m³) → confirmar crea el trip, despacha ambos pedidos al mismo trip y descuenta
+    stock 20→16). Piezas: `vehicles.cargo_capacity_kg` (ya existía) + `cargo_capacity_m3` (nuevo);
+    `solve_vrp` gana `capacity_dims: list[CapacityDimension]` opcional → `AddDimensionWithVehicleCapacity`
+    de OR-Tools por magnitud (peso/volumen), escalando kg/m³ a enteros (×1000); sin dims el solver es
+    idéntico al mTSP de 7B (retrocompat verificada). `VrpOptimizeRequest` acepta `stops` (manual, 7B)
+    O `order_ids` (pedidos, 9C) — exactamente uno, validado con `model_validator`. `propose_optimization`
+    deriva paradas + demanda peso/volumen de cada pedido (suma de líneas × `delivery_goods`), incluye
+    una dimensión de capacidad solo si algún vehículo del pool la declara (a los sin-límite se les da
+    un tope "ilimitado"); `enforce_capacity=False` la desactiva. `confirm_run` reutiliza
+    `delivery_dispatch.assign_to_trip` (9B) para despachar cada pedido de la ruta a su trip — único
+    punto de entrada al stock, sin tocarlo aquí. Las paradas del VRP llevan `order_id` opcional (vacío
+    en modo manual) para saber qué pedido despachar al confirmar.
+- **Renumeración de fases confirmada:** la antigua Fase 8 (Reportes/BI) es ahora Fase 10, y la
+  antigua Fase 9 (auxiliares) la Fase 11 (ver tabla de fases más abajo, aún sin actualizar en detalle).
+- **Configuración sin código: completa (Config-A/B/C).** Módulo para que los admins adapten el
+  sistema a su nicho sin tocar código — campos custom, reglas de formulario/validación y workflows
+  condición→acción, aplicados a las 9 entidades principales del sistema.
+  - **Config-A (campos custom + opciones de listas): completa.** Backend probado (262 tests en total,
+    12 nuevos) y frontend verificado end-to-end en navegador (admin crea un campo `select`
+    obligatorio "Categoría interna" para Vehículos → aparece automáticamente en el formulario de
+    vehículo → se crea el vehículo con `custom_data={"categoria_interna":"interurbano"}`; validación
+    de obligatorio y de opción inválida devuelven 422). Piezas: `custom_field_definitions`
+    (`company_id, entity_type, key, label, field_type, options JSONB, required, order, active`) +
+    una columna `custom_data` JSONB en las 9 entidades habilitadas (vehicle/driver/trip/
+    delivery_order/client/maintenance_task/inventory_item/tire/delivery_goods). El validador puro
+    `services/custom_fields.py::validate_custom_data(definitions, data)` (tipos, required, select
+    dentro de opciones; descarta keys desconocidas) lo envuelve `validate_entity_custom_data` (→422)
+    que cada endpoint de entidad llama en create/update. Permiso nuevo `config` para administrar
+    (crear/editar/borrar definiciones); LISTARLAS no exige `config` (cualquiera que edita una entidad
+    necesita conocer sus campos para renderizarlos). Frontend: `ConfigPage` (entrada "Configuración"
+    en el `Sidebar`, gateada por `config`) administra los campos por entidad; el componente genérico
+    `components/config/CustomFieldsSection.tsx` renderiza los campos activos y se inserta en el
+    formulario de cada entidad editando `custom_data` (integrado por ahora en `VehicleFormModal`;
+    insertarlo en los demás formularios es el mismo patrón de una línea). **Fuera de alcance de A**
+    (decisión pendiente): extender los *enums de sistema* con `CheckConstraint` (tipo de vehículo,
+    estados…) por empresa — requiere quitar esos constraints y validar en app; con campos custom
+    tipo `select` se cubre el caso de nicho sin ese riesgo.
+  - **Config-B (reglas de formulario + reglas de validación): completa.** Backend probado (18 tests
+    nuevos: evaluador de condiciones, evaluador de fórmulas, endpoints, reglas de validación en las
+    9 entidades) y frontend verificado end-to-end en navegador (regla de formulario "ocultar campo
+    custom si tipo=remolque" se aplica en vivo al cambiar el select, sin recargar; regla de
+    validación "año < 2015 → bloquear" devuelve 422 con el mensaje configurado, año válido crea
+    normal). Piezas: `form_rules` (`company_id, entity_type, name, kind` formulario|validacion,
+    `condition` JSONB, `actions` JSONB, `active`, `order`). Evaluador de condiciones puro
+    (`services/form_rules.py::evaluate_condition`, gemelo TS en `features/config/ruleEngine.ts` —
+    misma semántica, ops igual/distinto/mayor/menor/≥/≤/en_lista/contiene/vacío/no_vacío) y
+    evaluador de fórmulas puro sin `eval` (parser aritmético propio) para la acción `calcular`. El
+    catálogo de campos por entidad (`GET /custom-fields/entity-schema?entity_type=`) combina campos
+    de sistema "reglables" (definidos a mano por entidad) con los custom de Config-A
+    (`custom.<key>`), y alimenta tanto el editor de reglas como el evaluador.
+    **Extensión: reglas de formulario también controlan campos de sistema.** Cada uno de los 9
+    formularios llama `features/config/useSystemFieldRules.ts` (arma el contexto — campos de
+    sistema + custom aplanados como `custom.<key>` — y evalúa las reglas activas una sola vez) y
+    envuelve sus inputs "reglables" (los mismos declarados en `services/entity_fields.py`) con
+    `rules.isHidden`/`rules.isRequired`, aplicando `rules.computed` vía un mapa de setters por
+    campo. Ese mismo objeto `rules` se pasa a `CustomFieldsSection` (prop `rules`, opcional — si no
+    se pasa, sigue evaluando por su cuenta) para no recargar/reevaluar las reglas dos veces.
+    Verificado en navegador: una regla "ocultar Marca si tipo=remolque" (campo de sistema) y una
+    regla previa "ocultar Categoría interna si tipo=remolque" (campo custom) conviven y se aplican
+    en vivo simultáneamente sin conflicto. Frontend: pestañas "Campos personalizados"/"Reglas" en
+    `ConfigPage`; editor de reglas (`RuleFormModal`) con constructor de condición+acciones sin
+    código.
+  - **Config-C (workflows condición→acción): completa.** Backend probado (9 tests nuevos: creación/
+    validación de acciones, disparo de `crear_alerta` y `actualizar_campo` al cumplirse la condición,
+    no-disparo cuando la condición no aplica o el workflow está inactivo, `cambio_estado` verificado
+    con el valor anterior, aislamiento por permiso `config`) y frontend verificado end-to-end en
+    navegador (workflow "crear alerta si tipo=remolque" al crear un vehículo → la alerta aparece
+    automáticamente en el panel del despachador, sin intervención manual). A diferencia de Config-B
+    (que actúa mientras se llena el formulario o bloquea antes de guardar), los workflows corren
+    **después** de persistir, como efecto secundario best-effort — mismo criterio que el auto-trigger
+    de ruteo de Fase 7A. `workflows` (`company_id, entity_type, name, event` creado|actualizado|
+    cambio_estado, `condition` JSONB, `actions` JSONB, `active`, `order`) reutiliza el evaluador puro
+    de condiciones de Config-B (`services/rule_engine.py`) y el catálogo de campos por entidad
+    (`services/entity_fields.py`) — sin reimplementar ninguno de los dos. `services/workflows.py::
+    run_workflows(db, company_id, entity_type, event, entity, previous_status=None)` arma el contexto
+    desde el registro YA persistido (no desde el payload) y ejecuta las acciones de los workflows que
+    matchean; nunca lanza — un workflow roto se loguea y no afecta la respuesta del endpoint que ya
+    completó su guardado. Dos acciones en esta primera versión: `crear_alerta` (reutiliza
+    `create_if_not_exists` de Fase 1, dedupe por `type=workflow_<id>`) y `actualizar_campo` (solo
+    campos **custom**, `target` debe empezar con `custom.`, validado en el schema). Integrado en las
+    9 entidades: `creado`/`actualizado` siempre tras el commit del endpoint; `cambio_estado` solo en
+    las 3 entidades cuyo `status` es parte del payload del PATCH genérico
+    (`STATUS_UPDATABLE_ENTITIES` en `workflows.py`: vehicle/driver/maintenance_task, este último
+    también en `/complete`) — trip/delivery_order/tire cambian de estado vía endpoints de transición
+    especializados (start/close, assign/deliver, movements) no cubiertos por `cambio_estado` en esta
+    versión, decisión de alcance explícita, no un olvido. El campo sintético `previous_status` queda
+    disponible como condición solo cuando `event=cambio_estado` (se arma en el frontend, no viene del
+    catálogo del backend). Frontend: tercera pestaña "Workflows" en `ConfigPage`, mismo editor visual
+    de condición que Config-B más un bloque de acciones específico (mensaje+severidad para
+    `crear_alerta`, campo custom+valor para `actualizar_campo`).
+- La antigua **Fase 10 (Reportes/BI + exportaciones)** sigue pendiente.
+
+### Notas de diseño de Fase 8 (reportes de conductor + chat)
+
+- **Conductor con login (`drivers.user_id`, FK unique nullable a `users`):** un conductor solo puede
+  loguearse si tiene `user_id`. El aislamiento "solo lo propio" NO se resolvió extendiendo
+  `require_permission` (que es por módulo, no por fila) sino con la dependency
+  `app/core/deps.py::get_current_driver`, que deriva el `Driver` desde el token — los endpoints
+  driver-facing (`POST /incident-reports`, `/chat/my-thread`, subida de adjuntos) nunca aceptan
+  `driver_id` del cliente. El rol "Conductor" no es de sistema sembrado: el admin lo crea por empresa
+  vía `/roles` con `DRIVER_SUGGESTED_PERMISSIONS` (`incidents`/`chat` write, `trips` read).
+- **Alerta de incidencia no es un job del barrido:** a diferencia del resto de chequeos de
+  `app/jobs/alerts.py`, `create_incident_alert` se llama directo desde `POST /incident-reports` al
+  crear un reporte de severidad alta/crítica, reutilizando `create_if_not_exists` (Fase 1). El enum
+  de `alerts.severity` solo tiene 3 niveles y el de incidencias 4 — "critica" cae en "alta" vía
+  `INCIDENT_SEVERITY_TO_ALERT_SEVERITY`, mismo desajuste ya documentado para fatiga.
+- **Tiempo real vía WebSocket in-process (`app/core/websocket_manager.py`):** un `ConnectionManager`
+  en memoria, un solo proceso, mismo criterio que el `AsyncIOScheduler` (sin Redis/pubsub hasta que
+  haya múltiples instancias del backend). Canales `/ws/company` (despachador) y `/ws/driver`
+  (conductor), autenticados por query param porque el handshake WebSocket del navegador no permite
+  headers custom. Al crear un reporte o mensaje se hace broadcast a los conectados relevantes.
+- **Adjuntos en filesystem local (`app/core/file_storage.py`):** se guardan bajo
+  `uploads/<company_id>/incidents/<incident_id>/` y se sirven vía `StaticFiles` en `/uploads`
+  (límite 10 MB, solo jpeg/png/webp/pdf). Migrar a un bucket S3-compatible más adelante es un cambio
+  acotado a ese archivo, sin tocar endpoints — mismo criterio adapter que GPS/routing.
+- **Chat: un hilo por (driver_id, incident_report_id):** si `incident_report_id` es NULL es el chat
+  general de dudas del conductor (uno solo, reutilizado vía `get_or_create_thread`); si no, el hilo
+  atado a ese reporte. No hay tabla de "participantes": el `sender_type` (conductor/despachador) se
+  infiere de si el usuario logueado tiene un `Driver` vinculado.
+- **Frontend con layout separado:** el portal del conductor (`/driver`, `/driver/chat`,
+  `/driver/incidents/:id`) usa `DriverPortalLayout` (móvil-first, sin `Sidebar`), no
+  `DashboardLayout`. El `ProtectedRoute` de gestión redirige a `/driver` si el usuario es conductor,
+  y `DriverProtectedRoute` hace lo inverso. `useLiveSocket` (WebSocket con reconexión por backoff)
+  refresca el chat/listado en vivo — sin librería nueva. El login (`LoginPage`) redirige según
+  `driver_id` que ahora devuelven `/auth/login` y `/auth/me`.
 
 ## Comandos de desarrollo
 
@@ -99,7 +277,7 @@ npm run build         # build de producción
 - **Auth:** JWT + RBAC (roles por módulo, multiempresa)
 - **Motor de ruteo:** Mapbox Directions API en 7A (detrás de un adapter `RoutingEngine`, `fake` en
   tests); OSRM self-hosted queda como motor alternativo futuro sin cambios de código
-- **Optimización VRP:** Google OR-Tools (Fase 7B, aún no implementada)
+- **Optimización VRP:** Google OR-Tools (`ortools`, Fase 7B)
 - **Colas/jobs:** para ingesta GPS y cálculo de alertas (ej. Celery + Redis, o APScheduler si el volumen es bajo al inicio)
 
 ## Reglas de trabajo con Claude Code
@@ -108,7 +286,12 @@ npm run build         # build de producción
 2. Cada fase se desarrolla, se revisa, se aprueba, y se hace `/clear` antes de iniciar la siguiente.
 3. Reutilizar patrones y componentes ya definidos en fases anteriores (no reinventar).
 4. Toda tabla nueva debe declarar sus relaciones (FK) explícitamente antes de generar migraciones.
-5. Estética: dark-mode premium, tipografía serif para display, acentos oro/cobre (según guía de marca Wise Designs+).
+5. Estética (rediseño 2026): **light-mode SaaS**, tipografía sans-serif (Inter), acento **azul**
+   (`#2d5bff`), sidebar vertical **azul royal** (`#2946d8`) con iconos, header blanco con breadcrumb
+   "Principal / …" y avatar de iniciales, cards blancas con borde/sombra suave sobre fondo lavanda
+   claro (`#eef1f9`). Reemplaza la identidad anterior (dark-mode + oro/cobre + serif de Wise
+   Designs+). Los tokens de `@theme` conservan sus nombres antiguos (p.ej. `gold` = primario azul,
+   `font-display` = Inter) para no reescribir cada pantalla — ver la nota de Tailwind v4 abajo.
 
 ## Arquitectura implementada
 
@@ -260,6 +443,34 @@ recibe siempre `company_id` explícito) → `api/v1/` (routers FastAPI, resuelve
   motor falla). `trip_crud.create` excluye las coords del `model_dump` porque no son columnas de
   `trips`. `route_settings` sigue el patrón get-or-create por empresa (como `fatigue_rules`), y todo
   el módulo de ruteo se gatea con el permiso `trips` existente (no se creó un módulo nuevo).
+- **VRP multi-vehículo (`app/services/vrp_optimization.py`, `vrp_distance_matrix.py`,
+  `vrp_planning.py`, Fase 7B):** el solver (`solve_vrp`, OR-Tools `pywrapcp`) es una función pura
+  que recibe una matriz de distancias haversine (`build_distance_matrix_m` — sin red, testeable con
+  coords fijas, mismo criterio que `route_geometry.py`) y resuelve un mTSP sin capacidad ni
+  ventanas de tiempo. Rutas abiertas (cada vehículo no vuelve a su punto de partida) vía el truco
+  estándar de OR-Tools: el nodo de partida de cada vehículo también actúa como su nodo de "regreso",
+  pero todo arco hacia ese nodo cuesta 0 — el solver nunca paga (ni optimiza) el tramo de vuelta.
+  `vrp_planning.propose_optimization` arma el pool de vehículos candidatos (activos, con conductor
+  asignado, sin viaje `en_curso`, con posición GPS conocida — es su punto de partida) y guarda la
+  propuesta en un `VrpRun` (`status='propuesto'`) sin crear trips todavía; la distancia/duración de
+  la propuesta se estima con haversine (`estimate_route_km_and_min`), no con el motor de ruteo real.
+  `confirm_run` recién ahí crea un trip por vehículo (`is_round_trip=False`, `distance_km=None` —
+  igual que 7A, nunca se toca el dato operativo del flete) y llama
+  `route_planning.compute_multi_stop_route_plan` para la geometría real.
+- **Ruta real a través de paradas sin tocar `RoutingEngine`:** en vez de extender la interfaz de
+  7A con soporte nativo de waypoints, `compute_multi_stop_route_plan` llama al motor activo una vez
+  por tramo (origen→parada1→parada2→...→última parada, mismo `engine.route()` de 7A) y concatena
+  geometría/distancia/duración — mismo "único punto de entrada al motor", sin cambiar el contrato
+  que ya usa Mapbox/fake. `route_plan_crud.upsert_for_trip` ahora acepta `waypoints` opcional (7A no
+  lo pasa y queda `[]`; 7B lo llena con las paradas ordenadas — el campo que quedó reservado desde
+  el modelo de `route_plans` en 7A).
+- **`vrp_runs`** es la bitácora de auditoría de cada corrida (`input_stops`, `vehicle_ids_considered`,
+  `proposed_assignment`, `status` propuesto/confirmado/descartado, `result_trip_ids`), mismo criterio
+  que `route_recalculations` (7A). No hay tabla de "paradas" aparte: las paradas confirmadas viven
+  únicamente en `route_plans.waypoints` del trip resultante, sin duplicar el dato.
+- **Límite duro de 60 paradas por corrida** (`vrp_planning.MAX_STOPS_PER_RUN`, validado también en
+  el schema `VrpOptimizeRequest`) para mantener el solve síncrono dentro de un timeout de request
+  razonable — no se plantea como job en background.
 
 ### Frontend (`frontend/src/`)
 
@@ -277,8 +488,15 @@ feature (ej. `components/users/UserTable.tsx`).
   no reemplaza la validación del backend.
 - **Sidebar:** ya lista para las fases futuras — los módulos no implementados aparecen listados y
   deshabilitados bajo "Próximamente" en vez de omitirse, para no rehacer el layout en cada fase.
-- **Tailwind v4:** tema (colores oro/cobre, fuente serif de display) definido vía `@theme` en
-  `src/styles/index.css`, no en `tailwind.config.*` — es el patrón nativo de Tailwind v4.
+- **Tailwind v4:** tema definido vía `@theme` en `src/styles/index.css`, no en `tailwind.config.*`
+  (patrón nativo de Tailwind v4). **Rediseño 2026 (light-mode azul):** se cambiaron SOLO los valores
+  de los tokens en `@theme`, conservando sus nombres — `--color-gold` es ahora el primario azul
+  (`#2d5bff`), `--color-background` el lavanda claro, `--color-surface` blanco, `--font-display`
+  pasa a Inter, y se añadieron `--color-sidebar*`. Como casi todas las pantallas usan clases
+  semánticas (`bg-surface`, `text-gold`, `border-border`, `font-display`…), el cambio de paleta se
+  propagó sin tocarlas; solo se reescribieron a mano `Sidebar` (azul con iconos SVG inline),
+  `DashboardLayout` (header + breadcrumb + avatar de iniciales) y los primitivos `Button/Modal/Badge`.
+  Para un acento azul nuevo, reutilizar el token `gold` (no introducir un color hardcodeado).
 - **Pantallas de configuración sin ruta propia en el sidebar:** siguiendo el mismo patrón que
   `trip-settings` (Fase 2) y `gps-settings` (Fase 3), `fatigue-settings` no tiene entrada directa en
   el `Sidebar` — se accede vía un botón "Reglas de fatiga" dentro de `DriversPage`. El detalle de
@@ -316,6 +534,17 @@ feature (ej. `components/users/UserTable.tsx`).
   Fase 3), un banner rojo cuando el último recálculo fue por desvío, y el historial de recálculos. El
   `TripFormModal` incluye un `<details>` opcional con las 4 coords para disparar el cálculo de ruta al
   crear el viaje. Sin librería de mapas nueva — Leaflet sigue siendo la única externa del proyecto.
+- **`VrpOptimizationPage` (Fase 7B) sin ruta propia en el `Sidebar`:** se llega vía el botón
+  "Optimizar rutas (VRP)" en `TripsPage`, mismo patrón que `trip-settings`. Flujo de una sola
+  pantalla con estado local (sin persistir el borrador): captura de paradas (lat/lng/etiqueta) +
+  selector de vehículos candidatos (`useAvailableVehicles`, precargado con todos los disponibles) →
+  `POST /vrp/optimize` → la propuesta se dibuja en `VrpProposalMap` (mismo mapa Leaflet + tiles CARTO
+  de Fase 3/7A, una polyline de color distinto por vehículo, posición GPS de partida vía
+  `getLatestPosition` de Fase 3) con una tabla de paradas/distancia/duración estimada por vehículo →
+  "Confirmar y crear viajes" o "Descartar". Tras confirmar, enlaces directos a cada trip creado
+  (`/trips/:tripId`) y a su ruta real ya calculada (`/trips/:tripId/route`, reutiliza `TripRoutePage`
+  de 7A sin cambios). Sin librería de mapas ni de optimización nueva en el frontend — el solver corre
+  enteramente en el backend.
 
 ---
 
@@ -379,6 +608,10 @@ feature (ej. `components/users/UserTable.tsx`).
 - **route_settings** — id, company_id (unique), deviation_threshold_m (default 150),
   recalc_cooldown_min (default 5) — umbral/cooldown configurables por empresa, mismo patrón que
   `fatigue_rules` (Fase 4) / `tire_settings` (Fase 5)
+- **vrp_runs** (Fase 7B) — id, company_id, input_stops (JSONB), cargo_type, vehicle_ids_considered
+  (JSONB), proposed_assignment (JSONB), status (propuesto/confirmado/descartado), result_trip_ids
+  (JSONB), created_by, created_at — bitácora de auditoría de cada corrida del solver; sin tabla de
+  "paradas" aparte, las paradas confirmadas viven en `route_plans.waypoints` del trip resultante
 
 ### Fatiga del conductor
 - **fatigue_rules** — id, company_id, max_continuous_hours, max_24h_hours, max_7day_hours, night_driving_weight

@@ -25,9 +25,19 @@ export function TripsPage() {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl text-text">Viajes</h1>
         <div className="flex gap-3">
+          {hasPermission('trips', 'read') && (
+            <Link to="/clients">
+              <Button variant="secondary">Clientes</Button>
+            </Link>
+          )}
           {hasPermission('trip_settings', 'read') && (
             <Link to="/trip-settings">
               <Button variant="secondary">Tabulados</Button>
+            </Link>
+          )}
+          {canWrite && (
+            <Link to="/trips-vrp">
+              <Button variant="secondary">Optimizar rutas (VRP)</Button>
             </Link>
           )}
           {canWrite && <Button onClick={() => setShowCreateModal(true)}>Nuevo viaje</Button>}

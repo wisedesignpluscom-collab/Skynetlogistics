@@ -22,7 +22,7 @@ from app.models.role import Role
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.warehouse import Warehouse
-from app.utils.permissions import DEFAULT_ADMIN_PERMISSIONS, SUPERADMIN_PERMISSIONS
+from app.utils.permissions import DEFAULT_ADMIN_PERMISSIONS, DRIVER_SUGGESTED_PERMISSIONS, SUPERADMIN_PERMISSIONS
 
 TEST_DATABASE_URL = "postgresql+asyncpg://fleet:fleet_dev_pw@localhost:5432/fleet_test_db"
 
@@ -163,6 +163,32 @@ async def driver(db: AsyncSession, company: Company) -> Driver:
     await db.commit()
     await db.refresh(d)
     return d
+
+
+@pytest_asyncio.fixture
+async def driver_role(db: AsyncSession, company: Company) -> Role:
+    r = Role(company_id=company.id, name="Conductor", permissions=DRIVER_SUGGESTED_PERMISSIONS)
+    db.add(r)
+    await db.commit()
+    await db.refresh(r)
+    return r
+
+
+@pytest_asyncio.fixture
+async def driver_user(db: AsyncSession, company: Company, driver_role: Role, driver: Driver) -> User:
+    u = User(
+        company_id=company.id,
+        role_id=driver_role.id,
+        name=driver.name,
+        email="conductor@acmetransport.dev",
+        password_hash=hash_password("Conductor123!"),
+    )
+    db.add(u)
+    await db.flush()
+    driver.user_id = u.id
+    await db.commit()
+    await db.refresh(u)
+    return u
 
 
 @pytest_asyncio.fixture

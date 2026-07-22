@@ -34,8 +34,14 @@ async def upsert_for_trip(
     calculated_distance_km: float,
     calculated_duration_min: int,
     engine_used: str,
+    waypoints: list | None = None,
 ) -> RoutePlan:
-    """Crea el plan del viaje o actualiza el existente (UNIQUE(trip_id) — un plan vigente por viaje)."""
+    """Crea el plan del viaje o actualiza el existente (UNIQUE(trip_id) — un plan vigente por viaje).
+
+    `waypoints` es opcional: sin él (caso 7A, ruta punto a punto) el plan queda con `[]` al
+    crearse y no se toca en updates posteriores. Fase 7B (VRP multi-parada) lo pasa con las
+    paradas intermedias ya optimizadas y ordenadas.
+    """
     plan = await get_by_trip(db, trip_id, company_id)
     if plan is None:
         plan = RoutePlan(company_id=company_id, trip_id=trip_id, waypoints=[])
@@ -48,6 +54,8 @@ async def upsert_for_trip(
     plan.calculated_distance_km = calculated_distance_km
     plan.calculated_duration_min = calculated_duration_min
     plan.engine_used = engine_used
+    if waypoints is not None:
+        plan.waypoints = waypoints
     await db.commit()
     await db.refresh(plan)
     return plan

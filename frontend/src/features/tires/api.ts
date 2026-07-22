@@ -28,6 +28,7 @@ export interface TireCreatePayload {
   model: string
   current_thickness_mm: number
   warehouse_id?: string | null
+  custom_data?: Record<string, unknown>
 }
 
 export interface TireUpdatePayload {

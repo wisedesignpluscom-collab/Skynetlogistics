@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,12 +13,14 @@ class TireCreate(BaseModel):
     model: str = Field(min_length=1, max_length=100)
     current_thickness_mm: float = Field(gt=0, le=99.9)
     warehouse_id: uuid.UUID | None = None
+    custom_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class TireUpdate(BaseModel):
     brand: str | None = Field(default=None, min_length=1, max_length=100)
     model: str | None = Field(default=None, min_length=1, max_length=100)
     current_thickness_mm: float | None = Field(default=None, gt=0, le=99.9)
+    custom_data: dict[str, Any] | None = None
 
 
 class TireOut(BaseModel):
@@ -35,6 +38,7 @@ class TireOut(BaseModel):
     axle_side: str | None
     axle_dual_position: str | None
     warehouse_id: uuid.UUID | None
+    custom_data: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
 

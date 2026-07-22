@@ -1,3 +1,5 @@
+import uuid
+
 from pydantic import BaseModel, EmailStr
 
 from app.schemas.user import UserWithRoleOut
@@ -24,8 +26,10 @@ class TokenPair(BaseModel):
 
 class LoginResponse(TokenPair):
     user: UserWithRoleOut
+    driver_id: uuid.UUID | None = None
 
 
 class MeResponse(BaseModel):
     user: UserWithRoleOut
     permissions: dict[str, list[str]]
+    driver_id: uuid.UUID | None = None

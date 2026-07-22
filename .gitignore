@@ -14,3 +14,11 @@ frontend/.vite/
 # Editor / OS
 .DS_Store
 *.log
+._*
+
+# Local tooling / personal vaults (not part of the app)
+.claude/scheduled_tasks.lock
+.obsidian/
+
+# Unrelated reference material accidentally placed at repo root
+/transportex-v2-manual-de-usuario.pdf

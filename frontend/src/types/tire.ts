@@ -30,6 +30,7 @@ export interface Tire {
   axle_side: AxleSide | null
   axle_dual_position: AxleDualPosition | null
   warehouse_id: string | null
+  custom_data?: Record<string, unknown>
   created_at: string
   updated_at: string
 }
