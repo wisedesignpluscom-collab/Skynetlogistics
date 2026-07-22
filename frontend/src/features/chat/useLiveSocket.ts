@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { getAccessToken } from '../../lib/axios'
+import { API_ORIGIN, getAccessToken } from '../../lib/axios'
 
 /**
  * Conexión WebSocket en vivo (dispatcher o conductor, ver app/api/v1/ws.py). El auth va por query
@@ -19,8 +19,11 @@ export function useLiveSocket(kind: 'company' | 'driver', onEvent: (payload: Rec
     let closedByCleanup = false
 
     function connect() {
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      socket = new WebSocket(`${protocol}://${window.location.host}/api/v1/ws/${kind}?token=${token}`)
+      const wsHost = API_ORIGIN ? API_ORIGIN.replace(/^https?:\/\//, '') : window.location.host
+      const protocol = (API_ORIGIN ? API_ORIGIN.startsWith('https:') : window.location.protocol === 'https:')
+        ? 'wss'
+        : 'ws'
+      socket = new WebSocket(`${protocol}://${wsHost}/api/v1/ws/${kind}?token=${token}`)
 
       socket.onmessage = (event) => {
         try {

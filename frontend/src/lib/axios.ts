@@ -3,6 +3,11 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 const ACCESS_TOKEN_KEY = 'fleet.access_token'
 const REFRESH_TOKEN_KEY = 'fleet.refresh_token'
 
+// En dev, vacío: vite.config.ts hace proxy de /api al backend local.
+// En producción (frontend y backend en dominios distintos, ej. Vercel + Railway),
+// VITE_API_BASE_URL debe apuntar a la URL pública del backend.
+export const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY)
 }
@@ -21,7 +26,7 @@ export function clearTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
-export const api = axios.create({ baseURL: '/api/v1' })
+export const api = axios.create({ baseURL: `${API_ORIGIN}/api/v1` })
 
 api.interceptors.request.use((config) => {
   const token = getAccessToken()
@@ -36,7 +41,7 @@ let refreshPromise: Promise<string> | null = null
 async function refreshAccessToken(): Promise<string> {
   const refreshToken = getRefreshToken()
   if (!refreshToken) throw new Error('No hay refresh token')
-  const { data } = await axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken })
+  const { data } = await axios.post(`${API_ORIGIN}/api/v1/auth/refresh`, { refresh_token: refreshToken })
   setTokens(data.access_token, data.refresh_token)
   return data.access_token as string
 }

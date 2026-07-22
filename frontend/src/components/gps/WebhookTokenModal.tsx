@@ -1,5 +1,6 @@
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
+import { API_ORIGIN } from '../../lib/axios'
 
 interface WebhookTokenModalProps {
   providerId: string
@@ -8,7 +9,7 @@ interface WebhookTokenModalProps {
 }
 
 export function WebhookTokenModal({ providerId, token, onClose }: WebhookTokenModalProps) {
-  const webhookUrl = `${window.location.origin}/api/v1/gps/webhook/${providerId}`
+  const webhookUrl = `${API_ORIGIN || window.location.origin}/api/v1/gps/webhook/${providerId}`
 
   return (
     <Modal title="Token del webhook" onClose={onClose}>
