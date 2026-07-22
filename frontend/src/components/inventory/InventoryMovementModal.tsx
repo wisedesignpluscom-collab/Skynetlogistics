@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { useVehicles } from '../../features/vehicles/hooks'
+import { useProviders } from '../../features/providers/hooks'
 import type { InventoryMovementPayload } from '../../features/inventory/api'
 import type { InventoryItem, InventoryMovementType } from '../../types/inventory'
 
@@ -20,10 +21,14 @@ interface InventoryMovementModalProps {
 
 export function InventoryMovementModal({ item, onClose, onSubmit }: InventoryMovementModalProps) {
   const { data: vehiclesPage } = useVehicles({ page_size: 100 })
+  const { providers } = useProviders()
   const [movementType, setMovementType] = useState<InventoryMovementType>('entrada')
   const [quantity, setQuantity] = useState('')
   const [vehicleId, setVehicleId] = useState('')
+  const [providerId, setProviderId] = useState('')
   const [unitCost, setUnitCost] = useState('')
+  const [invoiceNumber, setInvoiceNumber] = useState('')
+  const [taxPercentage, setTaxPercentage] = useState('')
   const [referenceDoc, setReferenceDoc] = useState('')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +45,10 @@ export function InventoryMovementModal({ item, onClose, onSubmit }: InventoryMov
         movement_type: movementType,
         quantity: movementType === 'ajuste' ? numericQuantity : Math.abs(numericQuantity),
         vehicle_id: movementType === 'salida' ? vehicleId || null : null,
+        provider_id: movementType === 'entrada' ? providerId || null : null,
         unit_cost: unitCost ? Number(unitCost) : null,
+        invoice_number: movementType === 'entrada' ? invoiceNumber || null : null,
+        tax_percentage: movementType === 'entrada' && taxPercentage ? Number(taxPercentage) : null,
         reference_doc: referenceDoc || null,
         notes: notes || null,
       })
@@ -105,15 +113,55 @@ export function InventoryMovementModal({ item, onClose, onSubmit }: InventoryMov
         )}
 
         {movementType === 'entrada' && (
-          <Input
-            id="unit_cost"
-            label="Costo unitario de esta entrada ($, opcional)"
-            type="number"
-            min={0}
-            step="0.01"
-            value={unitCost}
-            onChange={(e) => setUnitCost(e.target.value)}
-          />
+          <>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-text-muted" htmlFor="provider_id">
+                Proveedor (opcional)
+              </label>
+              <select
+                id="provider_id"
+                value={providerId}
+                onChange={(e) => setProviderId(e.target.value)}
+                className="rounded-md border border-border bg-surface px-3 py-2 text-text focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+              >
+                <option value="">Sin especificar</option>
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                id="unit_cost"
+                label="Costo unitario ($, opcional)"
+                type="number"
+                min={0}
+                step="0.01"
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
+              />
+              <Input
+                id="tax_percentage"
+                label="% Impuesto (opcional)"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={taxPercentage}
+                onChange={(e) => setTaxPercentage(e.target.value)}
+              />
+            </div>
+
+            <Input
+              id="invoice_number"
+              label="N° de factura (opcional)"
+              value={invoiceNumber}
+              onChange={(e) => setInvoiceNumber(e.target.value)}
+            />
+          </>
         )}
 
         <Input

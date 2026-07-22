@@ -79,6 +79,8 @@ export function InventoryItemDetailPage() {
               <th className="px-4 py-2 font-medium">Fecha</th>
               <th className="px-4 py-2 font-medium">Tipo</th>
               <th className="px-4 py-2 font-medium">Cantidad</th>
+              <th className="px-4 py-2 font-medium">Costo unit.</th>
+              <th className="px-4 py-2 font-medium">Factura</th>
               <th className="px-4 py-2 font-medium">Documento</th>
               <th className="px-4 py-2 font-medium">Notas</th>
             </tr>
@@ -92,13 +94,20 @@ export function InventoryItemDetailPage() {
                   {movement.movement_type === 'salida' ? '-' : movement.movement_type === 'ajuste' && movement.quantity < 0 ? '' : '+'}
                   {movement.quantity} {item.unit}
                 </td>
+                <td className="px-4 py-2 text-text-muted">{movement.unit_cost != null ? `$${movement.unit_cost}` : '—'}</td>
+                <td className="px-4 py-2 text-text-muted">
+                  {movement.invoice_number ?? '—'}
+                  {movement.tax_percentage != null && (
+                    <span className="text-xs"> (+{movement.tax_percentage}% imp.)</span>
+                  )}
+                </td>
                 <td className="px-4 py-2 text-text-muted">{movement.reference_doc ?? '—'}</td>
                 <td className="px-4 py-2 text-text-muted">{movement.notes ?? '—'}</td>
               </tr>
             ))}
             {item.movements.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-text-muted">
+                <td colSpan={7} className="px-4 py-8 text-center text-text-muted">
                   Sin movimientos registrados todavía.
                 </td>
               </tr>

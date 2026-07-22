@@ -2,6 +2,7 @@ from httpx import AsyncClient
 
 from app.core.security import hash_password
 from app.models.company import Company
+from app.models.provider import Provider
 from app.models.role import Role
 from app.models.user import User
 from app.models.warehouse import Warehouse
@@ -56,6 +57,61 @@ async def test_movement_updates_item_quantity_end_to_end(
     detail = await client.get(f"/api/v1/inventory-items/{item['id']}", headers=headers)
     assert detail.json()["quantity"] == 20
     assert len(detail.json()["movements"]) == 1
+
+
+async def test_movement_accepts_provider_invoice_and_tax(
+    client: AsyncClient, admin_user: User, warehouse: Warehouse, db, company: Company
+) -> None:
+    provider = Provider(company_id=company.id, name="Repuestos Andinos", type="repuestos")
+    db.add(provider)
+    await db.commit()
+    await db.refresh(provider)
+
+    headers = await auth_headers(client, "admin@acmetransport.dev", "Sup3rSecret!")
+    item = await _create_item(client, headers, str(warehouse.id), "SKU-PROV")
+
+    resp = await client.post(
+        "/api/v1/inventory-movements",
+        headers=headers,
+        json={
+            "item_id": item["id"],
+            "movement_type": "entrada",
+            "quantity": 10,
+            "provider_id": str(provider.id),
+            "unit_cost": 12.5,
+            "invoice_number": "FAC-2026-001",
+            "tax_percentage": 16,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["provider_id"] == str(provider.id)
+    assert body["invoice_number"] == "FAC-2026-001"
+    assert body["tax_percentage"] == 16.0
+
+
+async def test_movement_rejects_provider_from_other_company(
+    client: AsyncClient, admin_user: User, warehouse: Warehouse, db, other_company: Company
+) -> None:
+    other_provider = Provider(company_id=other_company.id, name="Proveedor Ajeno", type="repuestos")
+    db.add(other_provider)
+    await db.commit()
+    await db.refresh(other_provider)
+
+    headers = await auth_headers(client, "admin@acmetransport.dev", "Sup3rSecret!")
+    item = await _create_item(client, headers, str(warehouse.id), "SKU-PROV2")
+
+    resp = await client.post(
+        "/api/v1/inventory-movements",
+        headers=headers,
+        json={
+            "item_id": item["id"],
+            "movement_type": "entrada",
+            "quantity": 5,
+            "provider_id": str(other_provider.id),
+        },
+    )
+    assert resp.status_code == 422
 
 
 async def test_salida_beyond_stock_rejected_with_422(

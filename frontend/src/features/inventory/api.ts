@@ -17,6 +17,7 @@ export interface InventoryItemCreatePayload {
   unit: string
   min_stock?: number
   unit_cost?: number
+  custom_data?: Record<string, unknown>
 }
 
 export interface InventoryItemUpdatePayload {
@@ -32,7 +33,10 @@ export interface InventoryMovementPayload {
   movement_type: InventoryMovementType
   quantity: number
   vehicle_id?: string | null
+  provider_id?: string | null
   unit_cost?: number | null
+  invoice_number?: string | null
+  tax_percentage?: number | null
   reference_doc?: string | null
   notes?: string | null
 }

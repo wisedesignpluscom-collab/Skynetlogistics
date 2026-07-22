@@ -27,9 +27,14 @@ class InventoryMovement(Base, UUIDPKMixin):
     vehicle_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("vehicles.id"), nullable=True
     )
+    provider_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("providers.id"), nullable=True
+    )
     movement_type: Mapped[str] = mapped_column(String(20), nullable=False)
     quantity: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     unit_cost: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    invoice_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tax_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     reference_doc: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     recorded_by: Mapped[uuid.UUID | None] = mapped_column(

@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import ForeignKey, Numeric, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -24,3 +24,4 @@ class InventoryItem(Base, UUIDPKMixin, TimestampMixin):
     quantity: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     min_stock: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
     unit_cost: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    custom_data: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")

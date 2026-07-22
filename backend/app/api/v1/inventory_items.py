@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.services.custom_fields import validate_entity_custom_data
 from app.core.deps import require_permission
 from app.crud import inventory_item as inventory_item_crud
 from app.crud import inventory_movement as inventory_movement_crud
@@ -16,6 +17,7 @@ from app.schemas.inventory_item import (
     InventoryItemOut,
     InventoryItemUpdate,
 )
+from app.services.workflows import run_workflows
 
 router = APIRouter(prefix="/inventory-items", tags=["inventory"])
 
@@ -52,7 +54,14 @@ async def create_inventory_item(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Almacén no encontrado")
     if await inventory_item_crud.get_by_sku(db, current_user.company_id, payload.sku) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un ítem con ese SKU")
-    return await inventory_item_crud.create(db, current_user.company_id, payload)
+    payload.custom_data = await validate_entity_custom_data(
+        db, current_user.company_id, "inventory_item", payload.custom_data, payload=payload
+    )
+    item = await inventory_item_crud.create(db, current_user.company_id, payload)
+    await run_workflows(
+        db, company_id=current_user.company_id, entity_type="inventory_item", event="creado", entity=item
+    )
+    return item
 
 
 @router.get("/{item_id}", response_model=InventoryItemDetailOut)
@@ -84,4 +93,12 @@ async def update_inventory_item(
     if payload.warehouse_id is not None:
         if await warehouse_crud.get(db, payload.warehouse_id, current_user.company_id) is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Almacén no encontrado")
-    return await inventory_item_crud.update(db, item, payload)
+    if payload.custom_data is not None:
+        payload.custom_data = await validate_entity_custom_data(
+            db, current_user.company_id, "inventory_item", payload.custom_data, payload=payload
+        )
+    updated = await inventory_item_crud.update(db, item, payload)
+    await run_workflows(
+        db, company_id=current_user.company_id, entity_type="inventory_item", event="actualizado", entity=updated
+    )
+    return updated
