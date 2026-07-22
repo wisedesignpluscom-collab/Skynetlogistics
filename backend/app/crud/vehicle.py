@@ -14,6 +14,19 @@ async def get(db: AsyncSession, vehicle_id: uuid.UUID, company_id: uuid.UUID) ->
     return result.scalar_one_or_none()
 
 
+async def get_odometers_by_ids(
+    db: AsyncSession, vehicle_ids: list[uuid.UUID], company_id: uuid.UUID
+) -> dict[uuid.UUID, int]:
+    if not vehicle_ids:
+        return {}
+    result = await db.execute(
+        select(Vehicle.id, Vehicle.current_odometer_km).where(
+            Vehicle.id.in_(vehicle_ids), Vehicle.company_id == company_id
+        )
+    )
+    return {row.id: row.current_odometer_km for row in result}
+
+
 async def get_by_plate(db: AsyncSession, company_id: uuid.UUID, plate: str) -> Vehicle | None:
     result = await db.execute(
         select(Vehicle).where(Vehicle.company_id == company_id, Vehicle.plate == plate)

@@ -18,17 +18,19 @@ export interface VehiclePayload {
   vin?: string | null
   type: VehicleType
   assigned_driver_id?: string | null
+  owner_id?: string | null
+  color?: string | null
+  engine_serial?: string | null
+  has_odometer?: boolean
+  odometer_digits?: number | null
+  cargo_capacity_kg?: number | null
+  cargo_capacity_m3?: number | null
+  contract?: string | null
 }
 
-export interface VehicleUpdatePayload {
-  plate?: string
-  brand?: string
-  model?: string
-  year?: number
-  vin?: string | null
+export interface VehicleUpdatePayload extends Partial<Omit<VehiclePayload, 'type'>> {
   status?: VehicleStatus
   current_odometer_km?: number
-  assigned_driver_id?: string | null
 }
 
 export async function listVehicles(params: VehicleListParams = {}): Promise<Page<Vehicle>> {

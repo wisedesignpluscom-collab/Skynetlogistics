@@ -19,6 +19,11 @@ async def get_by_license(db: AsyncSession, company_id: uuid.UUID, license_number
     return result.scalar_one_or_none()
 
 
+async def get_by_user_id(db: AsyncSession, user_id: uuid.UUID) -> Driver | None:
+    result = await db.execute(select(Driver).where(Driver.user_id == user_id))
+    return result.scalar_one_or_none()
+
+
 async def list_paginated(
     db: AsyncSession,
     *,

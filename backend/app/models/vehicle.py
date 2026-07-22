@@ -1,7 +1,16 @@
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, SmallInteger, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    Numeric,
+    SmallInteger,
+    String,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -33,6 +42,18 @@ class Vehicle(Base, UUIDPKMixin, TimestampMixin):
     assigned_driver_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("drivers.id"), nullable=True
     )
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vehicle_owners.id"), nullable=True
+    )
+    color: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    engine_serial: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    has_odometer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    odometer_digits: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    cargo_capacity_kg: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    cargo_capacity_m3: Mapped[float | None] = mapped_column(Numeric(10, 3), nullable=True)
+    contract: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    custom_data: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
 
     assigned_driver: Mapped["Driver | None"] = relationship(foreign_keys=[assigned_driver_id])
+    owner: Mapped["VehicleOwner | None"] = relationship()
     maintenance_tasks: Mapped[list["MaintenanceTask"]] = relationship(back_populates="vehicle")

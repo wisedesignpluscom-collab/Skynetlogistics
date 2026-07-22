@@ -2,9 +2,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { DashboardLayout } from '../layouts/DashboardLayout'
 import { Badge } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { DriverDocumentsTable } from '../components/drivers/DriverDocumentsTable'
+import { DriverDocumentFormModal } from '../components/drivers/DriverDocumentFormModal'
 import { getDriver } from '../features/drivers/api'
 import { useDriverFatigueHistory } from '../features/fatigue/hooks'
+import { useDriverDocuments } from '../features/driverDocuments/hooks'
+import { createDriverDocument, deleteDriverDocument } from '../features/driverDocuments/api'
+import { useAuth } from '../features/auth/AuthContext'
 import type { Driver } from '../types/driver'
+import type { DriverDocument } from '../types/driver_document'
 import type { DriverFatigueLog, FatigueRiskLevel } from '../types/fatigue'
 
 const statusTone = {
@@ -66,11 +73,15 @@ function RiskHistoryChart({ history }: { history: DriverFatigueLog[] }) {
 
 export function DriverDetailPage() {
   const { driverId } = useParams<{ driverId: string }>()
+  const { hasPermission } = useAuth()
   const [driver, setDriver] = useState<Driver | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const dateFrom = daysAgoIso(14)
   const dateTo = todayIso()
   const { history, isLoading: isHistoryLoading } = useDriverFatigueHistory(driverId, dateFrom, dateTo)
+  const { documents, reload: reloadDocuments } = useDriverDocuments(driverId)
+  const [showDocumentModal, setShowDocumentModal] = useState(false)
+  const canWrite = hasPermission('drivers', 'write')
 
   const reload = useCallback(async () => {
     if (!driverId) return
@@ -84,6 +95,12 @@ export function DriverDetailPage() {
   }, [reload])
 
   const latest = history.length > 0 ? history[history.length - 1] : null
+
+  async function handleDeleteDocument(document: DriverDocument) {
+    if (!window.confirm('¿Eliminar este documento?')) return
+    await deleteDriverDocument(document.id)
+    await reloadDocuments()
+  }
 
   if (isLoading || !driver) {
     return (
@@ -111,6 +128,67 @@ export function DriverDetailPage() {
           <Badge tone={statusTone[driver.status]}>{driver.status}</Badge>
         </div>
       </div>
+
+      <div className="mb-8 grid grid-cols-2 gap-x-8 gap-y-2 rounded-lg border border-border p-4 text-sm md:grid-cols-4">
+        <div>
+          <p className="text-text-muted">Correo</p>
+          <p className="text-text">{driver.email || '—'}</p>
+        </div>
+        <div>
+          <p className="text-text-muted">Teléfono secundario</p>
+          <p className="text-text">{driver.secondary_phone || '—'}</p>
+        </div>
+        <div>
+          <p className="text-text-muted">Dirección</p>
+          <p className="text-text">
+            {[driver.address, driver.city, driver.state, driver.country].filter(Boolean).join(', ') || '—'}
+          </p>
+        </div>
+        <div>
+          <p className="text-text-muted">Fecha de nacimiento</p>
+          <p className="text-text">{driver.birth_date || '—'}</p>
+        </div>
+        <div>
+          <p className="text-text-muted">Sueldo base</p>
+          <p className="text-text">{driver.base_salary != null ? `$${driver.base_salary}` : '—'}</p>
+        </div>
+        <div>
+          <p className="text-text-muted">Período de pago</p>
+          <p className="text-text">{driver.pay_period || '—'}</p>
+        </div>
+        <div>
+          <p className="text-text-muted">Fecha de ingreso</p>
+          <p className="text-text">{driver.hire_date || '—'}</p>
+        </div>
+        <div>
+          <p className="text-text-muted">Fecha de egreso</p>
+          <p className="text-text">{driver.termination_date || '—'}</p>
+        </div>
+        {driver.notes && (
+          <div className="col-span-full">
+            <p className="text-text-muted">Observaciones</p>
+            <p className="text-text">{driver.notes}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="font-display text-lg text-text">Documentos</h2>
+        {canWrite && <Button onClick={() => setShowDocumentModal(true)}>Agregar documento</Button>}
+      </div>
+      <div className="mb-8">
+        <DriverDocumentsTable documents={documents} canWrite={canWrite} onDelete={handleDeleteDocument} />
+      </div>
+
+      {showDocumentModal && driverId && (
+        <DriverDocumentFormModal
+          onClose={() => setShowDocumentModal(false)}
+          onSubmit={async (values) => {
+            await createDriverDocument(driverId, values)
+            await reloadDocuments()
+          }}
+        />
+      )}
 
       <h2 className="mb-4 font-display text-lg text-text">Historial de riesgo de fatiga (últimos 14 días)</h2>
 

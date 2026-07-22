@@ -1,6 +1,6 @@
 import { api } from '../../lib/axios'
 import type { Page } from '../../types/common'
-import type { Driver, DriverStatus } from '../../types/driver'
+import type { Driver, DriverStatus, PayPeriod } from '../../types/driver'
 
 export interface DriverListParams {
   page?: number
@@ -14,13 +14,22 @@ export interface DriverPayload {
   license_number: string
   license_expiry: string
   phone?: string | null
+  birth_date?: string | null
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  country?: string | null
+  email?: string | null
+  secondary_phone?: string | null
+  notes?: string | null
+  base_salary?: number | null
+  pay_period?: PayPeriod | null
+  hire_date?: string | null
+  termination_date?: string | null
+  custom_data?: Record<string, unknown>
 }
 
-export interface DriverUpdatePayload {
-  name?: string
-  license_number?: string
-  license_expiry?: string
-  phone?: string | null
+export interface DriverUpdatePayload extends Partial<DriverPayload> {
   status?: DriverStatus
 }
 

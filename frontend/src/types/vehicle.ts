@@ -13,6 +13,15 @@ export interface Vehicle {
   status: VehicleStatus
   current_odometer_km: number
   assigned_driver_id: string | null
+  owner_id: string | null
+  color: string | null
+  engine_serial: string | null
+  has_odometer: boolean
+  odometer_digits: number | null
+  cargo_capacity_kg: number | null
+  cargo_capacity_m3: number | null
+  custom_data?: Record<string, unknown>
+  contract: string | null
   created_at: string
   updated_at: string
 }
