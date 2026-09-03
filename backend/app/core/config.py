@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,9 +18,20 @@ class Settings(BaseSettings):
         # Hosts como Render/Railway/Heroku entregan DATABASE_URL como
         # postgres:// o postgresql://; el driver async necesita +asyncpg.
         if value.startswith("postgres://"):
-            return "postgresql+asyncpg://" + value[len("postgres://") :]
-        if value.startswith("postgresql://"):
-            return "postgresql+asyncpg://" + value[len("postgresql://") :]
+            value = "postgresql+asyncpg://" + value[len("postgres://") :]
+        elif value.startswith("postgresql://"):
+            value = "postgresql+asyncpg://" + value[len("postgresql://") :]
+
+        # Proveedores como Neon/Supabase entregan `sslmode=require` en la query
+        # string (convención de psycopg2); asyncpg no reconoce ese kwarg y
+        # revienta con TypeError al conectar. asyncpg sí acepta el mismo valor
+        # bajo la key `ssl`.
+        parts = urlsplit(value)
+        query = dict(parse_qsl(parts.query))
+        if "sslmode" in query:
+            query["ssl"] = query.pop("sslmode")
+            value = urlunsplit(parts._replace(query=urlencode(query)))
+
         return value
 
     jwt_secret_key: str = "change-me-in-production"
